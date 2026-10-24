@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FANUC 铣削编程助手</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231f5fbf'/%3E%3Cpath d='M8 22V10h3v9h4v3H8zm9-2V8h3v9h4v3h-7z' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+/* ===== 基础 token ===== */
+:root{
+  --bg:#e9eef4; --panel:#ffffff; --panel-2:#f5f8fb;
+  --ink:#1f2d3d; --ink-2:#5c6b7f; --ink-3:#8a99ab;
+  --blue:#1f5fbf; --blue-d:#16488f; --blue-l:#e8f0fb;
+  --crt:#161e2b; --crt-2:#1e293b; --crt-ink:#d8e1ee; --crt-dim:#7e8ea3;
+  --orange:#e8833a; --orange-l:#fdf0e3;
+  --green:#2e9e5b; --green-l:#e6f5ec;
+  --red:#d64545; --red-l:#fbeaea;
+  --warn:#c98a1e; --warn-l:#fbf3e2;
+  --line:#dbe3ee; --radius:10px;
+  --mono:Consolas,'Courier New',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:'Microsoft YaHei','PingFang SC',system-ui,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.55}
+button{font-family:inherit;cursor:pointer}
+input,textarea{font-family:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* ===== 顶栏 ===== */
+.app-head{background:linear-gradient(180deg,#16488f,#1f5fbf);color:#fff;padding:14px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.app-logo{width:38px;height:38px;border-radius:8px;background:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+.app-title{font-size:18px;font-weight:700;letter-spacing:.5px}
+.app-sub{font-size:12px;opacity:.85;margin-top:2px}
+.app-badges{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap}
+.badge{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.35);padding:3px 10px;border-radius:20px;font-size:12px}
+
+/* ===== 主体布局 ===== */
+.workspace{display:flex;flex-direction:column;gap:12px;padding:12px;max-width:1560px;margin:0 auto}
+
+/* ===== 面板通用 ===== */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.panel-head{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel-2);flex-wrap:wrap}
+.panel-title{font-weight:700;font-size:15px;display:flex;align-items:center;gap:8px}
+.panel-title svg{flex:none}
+.panel-tools{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* ===== 按钮 ===== */
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 12px;border-radius:7px;font-size:14px;min-height:34px;transition:background .15s,border-color .15s}
+.btn.flash{color:#0a6d34;font-weight:700;border-color:#7cb38a;background:#e9f7ee}
+.toast-tip{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(10px);background:rgba(20,30,40,.94);color:#fff;padding:10px 15px;border-radius:9px;font-size:13px;line-height:1.55;max-width:min(88vw,440px);z-index:99;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.18)}
+.toast-tip.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.btn:hover{border-color:var(--blue);color:var(--blue)}
+.btn-primary{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.btn-primary:hover{background:var(--blue-d);color:#fff}
+.btn-ghost{background:transparent;border-color:transparent}
+.btn-danger{color:var(--red);border-color:#ecc;}
+.btn-danger:hover{border-color:var(--red)}
+.btn-sm{font-size:12px;padding:4px 9px;min-height:28px;border-radius:6px}
+.chip{background:#fff;border:1px solid var(--line);padding:4px 10px;border-radius:16px;font-size:12px;color:var(--ink-2)}
+.chip.on{background:var(--blue-l);border-color:var(--blue);color:var(--blue-d);font-weight:600}
+
+/* ===== 编辑器 ===== */
+.editor-body{padding:10px}
+.editor-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;align-items:center}
+.tpl-btn{font-size:12px;padding:4px 9px;min-height:28px;background:var(--crt-2);color:var(--crt-ink);border:1px solid #2c3a4f;border-radius:6px}
+.tpl-btn:hover{background:#2a3a52;color:#fff}
+textarea#code{width:100%;min-height:340px;background:var(--crt);color:var(--crt-ink);border:1px solid #2c3a4f;border-radius:8px;padding:12px;font-family:var(--mono);font-size:15px;line-height:1.6;resize:vertical;tab-size:4}
+textarea#code::placeholder{color:var(--crt-dim)}
+.code-wrap{display:flex;align-items:stretch;border:1px solid #2c3a4f;border-radius:8px;background:var(--crt);overflow:hidden;max-height:60vh}
+.line-no{flex:none;width:44px;background:#18242f;color:var(--crt-dim);font-family:var(--mono);font-size:15px;line-height:1.6;text-align:right;padding:12px 6px 12px 0;box-sizing:border-box;overflow:hidden;user-select:none;border-right:1px solid #2c3a4f}
+.line-no .no-inner{white-space:pre;will-change:transform}
+textarea#code{width:100%;min-height:340px;background:transparent;color:var(--crt-ink);border:none;outline:none;border-radius:0;padding:12px 12px 12px 8px;font-family:var(--mono);font-size:15px;line-height:1.6;resize:vertical;tab-size:4;white-space:pre;overflow:auto;flex:1}
+textarea#code::placeholder{color:var(--crt-dim)}
+.editor-tip{font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.5}
+.font-ctl{margin-left:auto;display:flex;align-items:center;gap:2px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:2px 6px;flex:none}
+.font-ctl .btn{border:none;background:transparent;font-size:14px;font-weight:700;min-height:24px;padding:0 5px;color:var(--ink-2)}
+.font-ctl .btn:hover{background:var(--blue-l);color:var(--blue)}
+.font-ctl .btn:disabled{opacity:.35;cursor:default}
+.font-size-label{font-size:12px;color:var(--ink-2);min-width:30px;text-align:center;font-family:var(--mono)}
+
+/* ===== 解释输出 ===== */
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.stat{font-size:13px;color:var(--ink-2);display:flex;align-items:center;gap:6px}
+.stat b{font-size:16px;color:var(--ink)}
+.stat b.ok{color:var(--green)} .stat b.warn{color:var(--warn)} .stat b.err{color:var(--red)}
+.explain-list{display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow:auto;padding:2px}
+.line-item{border:1px solid var(--line);border-left:4px solid var(--ink-3);border-radius:7px;background:#fff;padding:7px 10px;font-size:13px;cursor:pointer;transition:background .4s}
+.line-item:hover{background:#f7fafd}
+.line-item.link-flash{background:#fff3cd}
+.line-item.ok{border-left-color:var(--green)}
+.line-item.warn{border-left-color:var(--warn)}
+.line-item.err{border-left-color:var(--red)}
+.line-item .ln{font-family:var(--mono);color:var(--ink-3);font-size:12px;margin-right:8px}
+.line-item .src{font-family:var(--mono);color:var(--ink);display:block;white-space:pre-wrap;word-break:break-all}
+.line-item .note{margin-top:4px;color:var(--ink-2);white-space:pre-wrap;word-break:break-all}
+.line-item .note .fa-t{display:inline;font-size:11px;color:var(--ink-3);font-weight:600;margin-right:4px}
+.line-item .note-b{display:inline}
+.line-issues{margin-top:6px;display:flex;flex-direction:column;gap:3px}
+.li-issue{font-size:12px;color:var(--ink-2);white-space:pre-wrap;word-break:break-all}
+.li-issue .li-lv{font-weight:600}
+.li-issue.err{color:var(--red)} .li-issue.warn{color:var(--warn)} .li-issue.info{color:var(--blue-d)}
+.facts{margin-top:6px;border-top:1px dashed var(--line);padding-top:5px}
+.alt{margin-top:6px;border-top:1px dashed var(--line);padding-top:5px}
+.facts .fa-t,.alt .fa-t{display:block;font-size:11px;color:var(--ink-3);margin-bottom:2px;font-weight:600}
+.facts-b{font-size:12px;color:var(--green);font-family:var(--mono);white-space:pre-wrap;word-break:break-all}
+.alt-b{font-size:12px;color:var(--blue-d);font-family:var(--mono);white-space:pre-wrap;word-break:break-all}
+.line-item .note b{color:var(--ink)}
+.line-item.err .note{color:var(--red)}
+.line-item.warn .note{color:#9a6a12}
+.issues-box{margin-bottom:10px;display:flex;flex-direction:column;gap:5px}
+.issue{font-size:13px;padding:6px 10px;border-radius:7px;display:flex;gap:8px;align-items:flex-start}
+.issue.err{background:var(--red-l);color:#a83232}
+.issue.warn{background:var(--warn-l);color:#8a5f0e}
+.issue.info{background:var(--blue-l);color:var(--blue-d)}
+.issue .ln{font-family:var(--mono);font-size:12px;opacity:.7;flex:none}
+.empty-state{padding:26px 16px;text-align:center;color:var(--ink-3);font-size:13px}
+
+/* ===== 指令速查 ===== */
+.ref-body{padding:10px}
+.ref-search{width:100%;min-height:42px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;font-size:16px;margin-bottom:8px}
+.ref-search:focus{border-color:var(--blue);outline:none}
+.ref-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}
+.ref-list{display:flex;flex-direction:column;gap:4px;max-height:56vh;overflow:auto}
+.code-item{border:1px solid var(--line);border-radius:7px;padding:7px 10px;cursor:pointer;background:#fff;transition:border-color .12s}
+.code-item:hover{border-color:var(--blue)}
+.code-item.open{border-color:var(--blue);background:var(--blue-l)}
+.code-item .top{display:flex;align-items:baseline;gap:8px}
+.code-item .c{font-family:var(--mono);font-weight:700;color:var(--blue-d);font-size:14px}
+.code-item .n{font-size:13px;color:var(--ink)}
+.code-item .g{font-size:11px;color:var(--ink-3);margin-left:auto;font-family:var(--mono)}
+.code-item .detail{display:none;margin-top:7px;font-size:13px;color:var(--ink-2);border-top:1px dashed var(--line);padding-top:7px}
+.code-item.open .detail{display:block}
+.code-item .detail .fmt{font-family:var(--mono);background:#fff;border:1px solid var(--line);border-radius:5px;padding:4px 8px;font-size:12px;color:var(--blue-d);display:block;margin-bottom:5px;word-break:break-all}
+.code-item .detail .tip{color:#9a6a12;background:var(--warn-l);border-radius:5px;padding:4px 8px;font-size:12px;margin-top:5px}
+.ref-note{font-size:12px;color:var(--ink-3);margin-top:8px;line-height:1.6}
+
+/* ===== 响应式：桌面 ===== */
+@media (min-width:768px){
+  .workspace{flex-direction:row;align-items:stretch;padding:14px}
+  .ref-panel{flex:0 0 300px}
+  .edit-panel{flex:1.1 1 0;min-width:0}
+  .out-panel{flex:1 1 0;min-width:0}
+  textarea#code{min-height:420px}
+}
+@media (min-width:1280px){
+  .ref-panel{flex-basis:320px}
+  .edit-panel{flex:1.15 1 0}
+  .out-panel{flex:1 1 0}
+}
+
+/* ===== 刀轨预览 ===== */
+.out-tab{border:1px solid var(--line);background:#fff;color:var(--ink-2);padding:5px 12px;border-radius:16px;font-size:13px;min-height:30px}
+.out-tab.on{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:600}
+.path-meta{font-size:13px;color:var(--ink-2);margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.path-meta .issue{margin:0}
+.path-comp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;color:var(--ink-2);margin-bottom:8px}
+.path-comp input[type=number]{width:64px;min-height:32px;border:1px solid var(--line);border-radius:6px;padding:2px 6px;font-family:var(--mono);font-size:14px}
+.path-comp .pc-ck{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:var(--ink-2);min-height:32px;cursor:pointer}
+.path-comp .pc-ck input{width:auto;min-height:auto}
+.path-legend .sw.dash{width:22px;border-top:2.5px dashed #ff8c1a;background:transparent;height:0;display:inline-block;flex:none}
+.path-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--ink-2);margin-bottom:8px;align-items:center}
+.path-legend .lg{display:flex;align-items:center;gap:5px}
+.path-legend .sw{width:22px;height:3px;display:inline-block;flex:none}
+.path-legend .dot{width:10px;height:10px;display:inline-block;border-radius:50%;flex:none}
+.path-box{border:1px solid var(--line);border-radius:8px;background:#fff;overflow:auto}
+.path-box svg{display:block}
+.path-box{cursor:zoom-in}
+.path-zoom-hint{font-size:12px;color:#8a97a8;margin-top:6px;display:flex;align-items:center;gap:5px}
+.path-zoom-hint svg{width:14px;height:14px;flex:none}
+.path-overlay{position:fixed;inset:0;z-index:3000;background:#eef2f7;display:flex;flex-direction:column;padding:14px;box-sizing:border-box}
+.path-overlay[hidden]{display:none}
+.path-overlay-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px;flex:none}
+.path-overlay-title{font-size:15px;font-weight:700;color:var(--ink-1)}
+.path-overlay-close{min-width:88px;min-height:44px;padding:0 18px;border:1px solid #d7e0ea;background:#fff;color:var(--ink-1);border-radius:8px;font-size:14px;cursor:pointer}
+.path-overlay-close:active{background:#eef2f7}
+.path-overlay-body{flex:1;min-height:0;background:#fff;border:1px solid var(--line);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:10px;box-sizing:border-box;overflow:auto}
+.path-overlay-body svg{width:100%;height:100%;max-width:1400px;max-height:1000px}
+@media (min-width:768px){ .path-overlay-body{padding:18px} }
+
+/* ===== 动效克制 ===== */
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<header class="app-head">
+  <div class="app-logo" aria-hidden="true">
+    <svg width="26" height="26" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="none"/><path d="M8 22V10h3v9h4v3H8zm9-2V8h3v9h4v3h-7z" fill="#1f5fbf"/></svg>
+  </div>
+  <div>
+    <div class="app-title">FANUC 铣削编程助手</div>
+    <div class="app-sub">写程序 · 查指令 · 逐行解释 · 常见错误检查（FANUC 0i 常用指令集）</div>
+  </div>
+  <div class="app-badges">
+    <!-- 版本号：每次改版发布前同步更新 -->
+    <span class="badge" id="verBadge">v3.15</span>
+    <span class="badge" id="gBadge">G 代码 {{GCOUNT}}</span>
+    <span class="badge" id="mBadge">M 代码 {{MCOUNT}}</span>
+  </div>
+</header>
+
+<main class="workspace">
+
+  <!-- ===== 中：编辑器 ===== -->
+  <section class="panel edit-panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>
+        程序编辑器
+      </div>
+      <div class="panel-tools">
+        <select id="sampleSel" class="btn" style="max-width:180px" aria-label="载入示例">
+          <option value="">载入示例程序…</option>
+        </select>
+        <button class="btn" id="btnClear" type="button">清空</button>
+        <button class="btn" id="btnCopy" type="button" title="复制代码到剪贴板">复制</button>
+        <button class="btn" id="btnSave" type="button" title="保存为文本文件">保存</button>
+        <button class="btn btn-primary" id="btnRun" type="button">解释程序</button>
+      </div>
+    </div>
+    <div class="editor-body">
+      <div class="editor-toolbar">
+        <span id="tplBar" style="display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center"></span>
+        <div class="font-ctl" role="group" aria-label="编辑器字号">
+          <button class="btn" id="fontMinus" type="button" title="缩小字体">A−</button>
+          <span class="font-size-label" id="fontSizeLabel">15px</span>
+          <button class="btn" id="fontPlus" type="button" title="增大字体">A+</button>
+        </div>
+      </div>
+      <div class="code-wrap">
+        <div class="line-no" id="lineNo" aria-hidden="true"><div class="no-inner" id="lineNoInner"></div></div>
+        <textarea id="code" wrap="off" spellcheck="false" placeholder="在此输入或粘贴 FANUC 铣削程序，点击「解释程序」逐行解读。&#10;示例：O0001;  G90 G94 G21;  G54;  G01 X100. F200;  M30;"></textarea>
+      </div>
+      <div class="editor-tip">模板按钮在光标处插入代码段；分号后为注释（不参与解释）；点「解释程序」或快捷键 Ctrl/Cmd + Enter 运行。</div>
+    </div>
+  </section>
+
+  <!-- ===== 右：程序解读 ===== -->
+  <section class="panel out-panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 3l8 4v5c0 4.5-3.2 7.6-8 9-4.8-1.4-8-4.5-8-9V7z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+        程序解读
+      </div>
+      <div class="panel-tools">
+        <button class="out-tab on" id="tabExplain" type="button">逐行解释</button>
+        <button class="out-tab" id="tabPath" type="button">刀轨预览</button>
+      </div>
+    </div>
+    <div class="editor-body">
+      <div id="explainView">
+        <div class="stats" id="statsBar"></div>
+        <div class="issues-box" id="issuesBox"></div>
+        <div class="explain-list" id="explainList"></div>
+      </div>
+      <div id="pathView" style="display:none">
+        <div class="path-meta" id="pathMeta"></div>
+        <div class="path-comp">
+          <span class="pc-t">刀具半径</span>
+          <input type="number" id="compRadius" value="5" min="0" max="50" step="0.5" aria-label="刀具半径（毫米）">
+          <span class="pc-u">mm</span>
+          <label class="pc-ck"><input type="checkbox" id="compOn" checked> 显示刀补示意线（G41/G42）</label>
+        </div>
+        <div class="path-legend">
+          <span class="lg"><span class="sw" style="background:#1f5fbf"></span>G01 切削</span>
+          <span class="lg"><span class="sw" style="background:#9aa7b8"></span>G00 快速</span>
+          <span class="lg"><span class="sw" style="background:#e8833a"></span>圆弧</span>
+          <span class="lg"><span class="sw dash" style="border-top-color:#ff8c1a"></span>刀补示意线</span>
+          <span class="lg"><span class="dot" style="border:2px solid #d64545;background:#fff"></span>孔位</span>
+          <span class="lg"><span class="dot" style="background:#2e9e5b"></span>起点</span>
+        </div>
+        <div class="path-box" id="pathSvgBox"></div>
+        <div class="path-zoom-hint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/><path d="M8 8h6M11 5v6"/></svg>点击刀轨图可全屏放大</div>
+        <div class="editor-tip" id="pathTip">刀轨为 XY 平面投影示意：子程序自动展开，G68 旋转 / G51.1 镜像 / G52 偏移已应用；未叠加刀补偏移（G41/G42）。</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 末栏：指令速查 ===== -->
+  <section class="panel ref-panel">
+    <div class="panel-head">
+      <div class="panel-title">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+        G/M 代码速查
+      </div>
+    </div>
+    <div class="ref-body">
+      <input class="ref-search" id="refSearch" type="search" placeholder="搜索：G81 / 刀补 / 攻丝…" aria-label="搜索指令">
+      <div class="ref-tabs" id="refTabs"></div>
+      <div class="ref-list" id="refList"></div>
+      <div class="ref-note">表内容按 FANUC 0i 常用指令整理，供学习与编程参考；具体以机床说明书与教材附录 A 为准。</div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* ================= 数据：G / M 代码速查表 =================
+   c=代码 n=名称 m=模态(布尔) g=组别 f=格式示例 d=说明 t=易错点 k=分类
+   分类: move 运动坐标系 / arc 圆弧 / comp 补偿 / cycle 固定循环 / trans 特殊变换 / m M代码 */
+const GCODES = [
+ {c:'G00', n:'快速定位', m:true, g:'01', f:'G00 X_ Y_ Z_', d:'以机床最快速度非切削移动，用于接近/退出加工位置。', t:'不进给切削；下刀接近工件时改用 G01 控制速度，防止撞刀。', k:'move'},
+ {c:'G01', n:'直线插补', m:true, g:'01', f:'G01 X_ Y_ Z_ F_', d:'按 F 指定的进给速度做直线切削，是铣削最常用的运动指令。', t:'F 为模态值，本段不写则沿用上一段；绝对/增量由 G90/G91 决定。', k:'move'},
+ {c:'G02', n:'顺时针圆弧插补', m:true, g:'01', f:'G02 X_ Y_ I_ J_ F_  或  G02 X_ Y_ R_ F_', d:'沿刀具进给方向看顺时针圆弧。圆心用 I/J/K（相对起点的增量）或 R（半径）指定。', t:'整圆（起点=终点）必须用 I J K，不能用 R；R 有最大值限制且圆心有二义性。', k:'arc'},
+ {c:'G03', n:'逆时针圆弧插补', m:true, g:'01', f:'G03 X_ Y_ I_ J_ F_  或  G03 X_ Y_ R_ F_', d:'沿刀具进给方向看逆时针圆弧。I/J/K 为圆心相对起点增量，R 为半径。', t:'顺逆方向判断反是圆弧编程最常见错误：沿刀具进给方向看，顺时针为 G02。', k:'arc'},
+ {c:'G04', n:'暂停/延时', m:false, g:'00', f:'G04 P1000  （毫秒）或 G04 X2. （秒）', d:'程序段执行完后暂停指定时间，常用于光孔底、让刀等。', t:'FANUC 常用 P 且单位是毫秒；注意与 G82 孔底暂停参数区分。', k:'arc'},
+ {c:'G17', n:'XY 平面选择', m:true, g:'02', f:'G17', d:'选择 XY 平面为加工平面（默认），圆弧/刀补在该平面内生效。', t:'铣床默认 G17；换到 G18/G19 后记得改回，否则圆弧方向判断会错。', k:'move'},
+ {c:'G18', n:'ZX 平面选择', m:true, g:'02', f:'G18', d:'选择 ZX 平面为加工平面。', t:'一般铣削少用；与 G02/G03 方向判断配合使用。', k:'move'},
+ {c:'G19', n:'YZ 平面选择', m:true, g:'02', f:'G19', d:'选择 YZ 平面为加工平面。', t:'同上，用后复位 G17。', k:'move'},
+ {c:'G20', n:'英制输入', m:true, g:'06', f:'G20', d:'坐标值按英寸输入。', t:'国内机床默认公制 G21，程序头写清单位避免尺寸差 25.4 倍。', k:'move'},
+ {c:'G21', n:'公制输入', m:true, g:'06', f:'G21', d:'坐标值按毫米输入（默认）。', t:'程序开头建议明确写 G21，防止系统残留英制状态。', k:'move'},
+ {c:'G28', n:'返回参考点', m:false, g:'00', f:'G28 Z0  或  G28 X0 Y0 Z0', d:'经中间点返回机床参考点，换刀/回零常用。', t:'回参考点前应先把刀具抬到安全高度，防止撞工件。', k:'move'},
+ {c:'G52', n:'局部坐标系设定', m:false, g:'00', f:'G52 X_ Y_ Z_', d:'在工件坐标系内再偏移一个局部坐标系原点，常用于子程序内重复加工。', t:'使用后必须 G52 X0 Y0（设回原点）取消，否则后续坐标全偏。', k:'trans'},
+ {c:'G53', n:'机床坐标系选择', m:false, g:'00', f:'G53 X_ Y_ Z_', d:'直接按机床坐标系给出坐标（非模态），常用于回零、换刀点。', t:'G53 是"非模态"，只对本段有效，不要与 G54-G59 混淆。', k:'move'},
+ {c:'G54', n:'工件坐标系 1', m:true, g:'14', f:'G54', d:'选择第 1 组工件坐标系，对刀结果存入其中。', t:'对刀后忘记写入/调用 G54 是最常见事故；加工前确认坐标系有效。', k:'move'},
+ {c:'G55', n:'工件坐标系 2', m:true, g:'14', f:'G55', d:'选择第 2 组工件坐标系，多工位/多夹具时使用。', t:'程序头写清用哪个坐标系，与对刀时存入的组号一致。', k:'move'},
+ {c:'G56', n:'工件坐标系 3', m:true, g:'14', f:'G56', d:'选择第 3 组工件坐标系。', t:'同上。', k:'move'},
+ {c:'G57', n:'工件坐标系 4', m:true, g:'14', f:'G57', d:'选择第 4 组工件坐标系。', t:'同上。', k:'move'},
+ {c:'G58', n:'工件坐标系 5', m:true, g:'14', f:'G58', d:'选择第 5 组工件坐标系。', t:'同上。', k:'move'},
+ {c:'G59', n:'工件坐标系 6', m:true, g:'14', f:'G59', d:'选择第 6 组工件坐标系。', t:'同上。', k:'move'},
+ {c:'G90', n:'绝对坐标编程', m:true, g:'03', f:'G90', d:'坐标值相对当前工件坐标系原点给出（默认）。', t:'初学者一律用 G90；与 G91 切换后注意状态。', k:'move'},
+ {c:'G91', n:'增量坐标编程', m:true, g:'03', f:'G91', d:'坐标值相对上一位置给出，子程序/重复加工常用。', t:'子程序里用 G91 时，返回前必须改回 G90，否则主程序坐标全乱。', k:'move'},
+ {c:'G92', n:'设定工件坐标系', m:false, g:'00', f:'G92 X_ Y_ Z_', d:'把当前位置设定为工件坐标系原点（非模态）。', t:'G92 与对刀、G54 易混淆；现代加工多用 G54 对刀方案。', k:'move'},
+ {c:'G94', n:'每分钟进给', m:true, g:'05', f:'G94', d:'F 单位 mm/min（铣削默认）。', t:'铣床默认 G94；车床常用 G95，切换后注意 F 数值含义。', k:'move'},
+ {c:'G95', n:'每转进给', m:true, g:'05', f:'G95', d:'F 单位 mm/r（与主轴转速联动）。', t:'攻丝等场合有用；铣削一般保持 G94。', k:'move'},
+ {c:'G40', n:'取消刀具半径补偿', m:true, g:'07', f:'G40', d:'取消 G41/G42 半径补偿（默认）。', t:'刀补取消段要给出移动指令，在安全位置撤销，防止过切。', k:'comp'},
+ {c:'G41', n:'刀具半径左补偿', m:true, g:'07', f:'G41 D_  G01 X_ Y_ F_', d:'沿刀具前进方向看，刀具偏在轮廓左侧（顺铣外轮廓常用）。', t:'建立/撤销要配合 D 值并在直线段完成；方向判反会整个过切。', k:'comp'},
+ {c:'G42', n:'刀具半径右补偿', m:true, g:'07', f:'G42 D_  G01 X_ Y_ F_', d:'沿刀具前进方向看，刀具偏在轮廓右侧。', t:'内轮廓用 G42 常见；镜像后刀补方向会翻转，注意重新判断。', k:'comp'},
+ {c:'G43', n:'刀具长度正补偿', m:true, g:'08', f:'G43 H_  Z_', d:'Z 坐标叠加刀具长度补偿值（对刀长度值），换刀后必须执行。', t:'不写 H 号或忘记 G43 会导致 Z 深度错误撞刀；换刀后重新建立。', k:'comp'},
+ {c:'G44', n:'刀具长度负补偿', m:true, g:'08', f:'G44 H_  Z_', d:'Z 坐标减去刀具长度补偿值。', t:'一般用 G43，G44 按需使用。', k:'comp'},
+ {c:'G49', n:'取消刀具长度补偿', m:true, g:'08', f:'G49', d:'取消 G43/G44 长度补偿（默认状态）。', t:'取消前先抬刀到安全高度。', k:'comp'},
+ {c:'G73', n:'高速啄钻循环', m:true, g:'09', f:'G73 X_ Y_ Z_ R_ Q_ F_', d:'深孔分段进给，每次按 Q 量钻入后退回一点（排屑）。', t:'Q 为每次啄削深度；R 为 R 点平面。', k:'cycle'},
+ {c:'G74', n:'左旋攻丝循环', m:true, g:'09', f:'G74 X_ Y_ Z_ R_ F_', d:'主轴反转攻丝，用于左旋螺纹。', t:'与 G84 主轴转向相反，注意螺距与进给关系。', k:'cycle'},
+ {c:'G76', n:'精镗循环', m:true, g:'09', f:'G76 X_ Y_ Z_ R_ Q_ F_', d:'镗孔到位后主轴定向、让刀退出，保护已加工表面。', t:'Q 为退刀让刀量；镗削参数要保守。', k:'cycle'},
+ {c:'G80', n:'取消固定循环', m:true, g:'09', f:'G80', d:'取消 G81-G89 全部固定循环（默认）。', t:'孔加工完成后必须 G80 取消，否则后续坐标会被循环接管。', k:'cycle'},
+ {c:'G81', n:'钻孔循环', m:true, g:'09', f:'G81 X_ Y_ Z_ R_ F_', d:'快速到 R 点后一次性钻到 Z，再快速退回。用于浅孔。', t:'深孔用 G83 啄钻排屑，避免 G81 一次钻深。', k:'cycle'},
+ {c:'G82', n:'锪孔/带暂停钻孔', m:true, g:'09', f:'G82 X_ Y_ Z_ R_ P_ F_', d:'钻到孔底暂停 P 毫秒后退回，用于锪平孔底/光孔。', t:'P 为孔底暂停时间（毫秒）；注意与 G04 用法区分。', k:'cycle'},
+ {c:'G83', n:'啄钻循环', m:true, g:'09', f:'G83 X_ Y_ Z_ R_ Q_ F_', d:'深孔分段钻削，每段后退到 R 点排屑，适合深孔。', t:'Q 为每次啄削深度，取值小于总深；R 点要高于排屑高度。', k:'cycle'},
+ {c:'G84', n:'右旋攻丝循环', m:true, g:'09', f:'G84 X_ Y_ Z_ R_ F_', d:'主轴正转攻丝，到底自动反转退回，用于右旋螺纹。', t:'刚性攻丝时 F 必须等于 S×螺距（如 S400、螺距1.5 则 F600）。', k:'cycle'},
+ {c:'G85', n:'铰孔/镗孔循环', m:true, g:'09', f:'G85 X_ Y_ Z_ R_ F_', d:'进给到 Z 后以进给速度退回，铰孔常用（无退刀暂停）。', t:'铰孔余量一般留 0.1-0.3mm，转速取中低值。', k:'cycle'},
+ {c:'G86', n:'镗孔循环', m:true, g:'09', f:'G86 X_ Y_ Z_ R_ F_', d:'镗到孔底主轴停，快速退回（粗镗常用）。', t:'孔底停主轴，注意让刀，防止划伤孔壁。', k:'cycle'},
+ {c:'G98', n:'循环返回初始平面', m:true, g:'10', f:'G98 G81 ...', d:'固定循环结束后返回初始平面，适合多孔/跨台阶加工。', t:'与 G99 二选一，按加工安全与效率选择。', k:'cycle'},
+ {c:'G99', n:'循环返回 R 点平面', m:true, g:'10', f:'G99 G81 ...', d:'固定循环结束后返回 R 点平面，少抬刀、效率高。', t:'相邻孔有凸台等干涉时用 G98 更安全。', k:'cycle'},
+ {c:'G15', n:'取消极坐标方式', m:true, g:'15', f:'G15', d:'取消 G16 极坐标，恢复直角坐标。', t:'用后必须 G15 取消，否则后续 X/Y 含义会错。', k:'trans'},
+ {c:'G16', n:'极坐标方式', m:true, g:'15', f:'G16  G81 X_ Y_ R_ ...', d:'X 表示半径、Y 表示角度，均布孔加工最常用。', t:'角度方向与起始角按图确认；用后 G15 取消。', k:'trans'},
+ {c:'G50.1', n:'取消镜像', m:true, g:'18', f:'G50.1 X_ Y_', d:'取消指定轴镜像。', t:'镜像状态下刀补方向（G41/G42）会反向，取消后恢复。', k:'trans'},
+ {c:'G51.1', n:'镜像加工', m:true, g:'18', f:'G51.1 X_ Y_', d:'对指定轴作镜像加工，适合对称零件。', t:'镜像后圆弧顺逆、刀补方向都反转，谨慎使用。', k:'trans'},
+ {c:'G68', n:'坐标旋转', m:true, g:'16', f:'G68 X_ Y_ R_', d:'以指定点为中心把坐标旋转 R 度，用于斜向特征加工。', t:'R 为旋转角度，逆时针为正；用后 G69 取消。', k:'trans'},
+ {c:'G69', n:'取消坐标旋转', m:true, g:'16', f:'G69', d:'取消 G68 旋转（默认）。', t:'旋转状态下换刀/回零要先取消。', k:'trans'}
+];
+const MCODES = [
+ {c:'M00', n:'程序暂停', m:false, g:'—', f:'M00', d:'程序执行到此暂停，按循环启动继续。常用于中途测量、检查。', t:'需要人工干预，批量加工中慎用。', k:'m'},
+ {c:'M01', n:'选择停止', m:false, g:'—', f:'M01', d:'面板"选择停止"开关打开时暂停，否则不停。', t:'与面板按钮配合使用。', k:'m'},
+ {c:'M02', n:'程序结束', m:false, g:'—', f:'M02', d:'程序结束（主轴、冷却随之停止）。', t:'现代编程多用 M30 复位。', k:'m'},
+ {c:'M03', n:'主轴正转', m:true, g:'—', f:'M03 S_', d:'主轴顺时针旋转，配合 S 指定转速。', t:'正/反转方向按刀具旋向选择，铣刀一般为正转。', k:'m'},
+ {c:'M04', n:'主轴反转', m:true, g:'—', f:'M04 S_', d:'主轴逆时针旋转。', t:'攻丝左旋螺纹等特殊场合使用。', k:'m'},
+ {c:'M05', n:'主轴停止', m:true, g:'—', f:'M05', d:'停止主轴旋转。', t:'换刀前必须主轴停止。', k:'m'},
+ {c:'M06', n:'自动换刀', m:false, g:'—', f:'T_ M06', d:'主轴自动换刀（加工中心），配合 T 指令选择刀具。', t:'换刀前 Z 回到换刀点；T 号与刀库对号。', k:'m'},
+ {c:'M08', n:'冷却液开', m:true, g:'—', f:'M08', d:'打开切削液。', t:'切入前打开，防止干切烧伤。', k:'m'},
+ {c:'M09', n:'冷却液关', m:true, g:'—', f:'M09', d:'关闭切削液。', t:'程序结束/抬刀前关闭。', k:'m'},
+ {c:'M30', n:'程序结束并复位', m:false, g:'—', f:'M30', d:'程序结束、主轴停、程序指针回到开头。', t:'每个主程序应以此结束；子程序用 M99 返回。', k:'m'},
+ {c:'M98', n:'调用子程序', m:false, g:'—', f:'M98 P_ L_', d:'调用子程序，P 为子程序号，L 为重复次数（默认 1）。', t:'子程序号与主程序区分；不写 L 默认执行 1 次。', k:'m'},
+ {c:'M99', n:'子程序返回', m:false, g:'—', f:'M99', d:'子程序结束返回主程序调用处。', t:'子程序末尾必须 M99，否则程序跑飞。', k:'m'}
+];
+const CODES = GCODES.concat(MCODES);
+const CATS = [
+ {k:'all', n:'全部'}, {k:'move', n:'运动/坐标'}, {k:'arc', n:'圆弧'}, {k:'comp', n:'补偿'},
+ {k:'cycle', n:'固定循环'}, {k:'trans', n:'变换'}, {k:'m', n:'M 代码'}
+];
+</script>
+<script>
+/* ================= 示例程序库 ================= */
+const SAMPLES = [
+{name:'① 平面铣削', code:'O0001; 平面铣削示例（分层铣削）\nG90 G94 G21; 绝对坐标 每分钟进给 公制\nG54; 工件坐标系\nT01 M06; 1号刀（面铣刀）\nG00 X-60. Y-40.; 快速定位到起点\nG43 H01 Z50. M03 S800; 长度补偿+主轴正转\nG00 Z5. M08; 下刀到安全高度 开冷却\nG01 Z-1. F80; 铣削第一层\nX60. F150; 切削第一行\nY-20.;\nX-60.;\nY0.;\nX60.;\nY20.;\nX-60.;\nY40.;\nX60.;\nG00 Z50. M09; 抬刀 关冷却\nM05; 主轴停\nM30; 程序结束'},
+{name:'② 外轮廓铣削（刀补）', code:'O0002; 外轮廓铣削示例\nG90 G94 G21;\nG54;\nT01 M06;\nG00 X-30. Y-30.; 定位到轮廓外\nG43 H01 Z50. M03 S1000;\nG00 Z2. M08;\nG41 D01 G01 X-20. Y-10. F100; 建立左刀补\nG01 Y10. F120; 轮廓起点\nX20.; 直线段\nY-10.;\nX-20.; 回到起点\nG40 G00 X-30. Y-30.; 取消刀补（安全位置）\nG00 Z50. M09;\nM05;\nM30;'},
+{name:'③ 内轮廓铣削（整圆）', code:'O0003; 内轮廓铣削示例\nG90 G94 G21;\nG54;\nT01 M06;\nG00 X0 Y0; 定位到圆心上方\nG43 H01 Z50. M03 S900;\nG00 Z5. M08;\nG01 Z-5. F60; 垂直下刀（建议螺旋/预钻孔）\nG41 D01 X10. Y0 F120; 建立刀补到圆上\nG02 I-10. J0; 整圆铣削（必须用 I J K）\nG40 G01 X0 Y0; 取消刀补回圆心\nG00 Z50. M09;\nM05;\nM30;'},
+{name:'④ 钻孔（G83 多孔）', code:'O0004; 钻孔示例（G83 啄钻）\nG90 G94 G21;\nG54;\nT02 M06; 2号钻头\nG00 X0 Y0;\nG43 H02 Z50. M03 S600;\nG99 G83 X20. Y0 Z-20. R3. Q3. F80; 第一个孔\nX-20. Y0; 第二个孔（循环延续）\nG98 G80; 取消循环 回初始平面\nG00 Z50. M09;\nM05;\nM30;'},
+{name:'⑤ 攻丝（G84）', code:'O0005; 攻丝示例\nG90 G94 G21;\nG54;\nT03 M06; 3号丝锥\nG00 X0 Y0;\nG43 H03 Z50. M03 S400; 主轴 400 r/min\nG99 G84 X20. Y0 Z-15. R3. F600; F=400×1.5=600（螺距1.5）\nX-20. Y0;\nG80;\nG00 Z50. M09;\nM05;\nM30;'},
+{name:'⑥ 子程序（M98/M99）', code:'O0006; 子程序示例（铣4个槽）\nG90 G94 G21;\nG54;\nT01 M06;\nG00 X0 Y0;\nG43 H01 Z50. M03 S800;\nG00 Z2. M08;\nM98 P2001 L4; 调用子程序4次\nG00 Z50. M09;\nM05;\nM30;\nO2001; 子程序：铣一个槽\nG91 G01 Z-1. F50; 增量下刀\nG90 G00 X20.; 绝对坐标移动\nM99; 返回主程序'},
+{name:'⑦ 坐标旋转（G68）', code:'O0007; 坐标旋转示例（旋转45°加工）\nG90 G94 G21;\nG54;\nT01 M06;\nG00 X30. Y0;\nG43 H01 Z50. M03 S800;\nG00 Z2. M08;\nG68 X0 Y0 R45.; 绕原点旋转45°\nG41 D01 G01 X15. Y0 F120; 建立刀补\nY10.; 轮廓（旋转后的坐标）\nX-15.;\nY-10.;\nX15.;\nG40 G00 X30. Y0;\nG69; 取消旋转\nG00 Z50. M09;\nM05;\nM30;'}
+];
+/* ================= 模板按钮 ================= */
+const TPLS = [
+ {t:'程序头', c:'O0001; 程序说明\nG90 G94 G21 G54;\nM03 S1000;\n'},
+ {t:'直线', c:'G01 X_ Y_ F_;\n'},
+ {t:'顺圆弧R', c:'G02 X_ Y_ R_ F_;\n'},
+ {t:'逆圆弧R', c:'G03 X_ Y_ R_ F_;\n'},
+ {t:'顺圆弧IJK', c:'G02 X_ Y_ I_ J_ F_;\n'},
+ {t:'刀补建立', c:'G41 D01 G01 X_ Y_ F_;  建立刀补\n'},
+ {t:'长度补偿', c:'G43 H01 Z50. M03 S800;\n'},
+ {t:'钻孔循环', c:'G99 G83 X_ Y_ Z_ R3. Q3. F80;\n'},
+ {t:'攻丝', c:'G99 G84 X_ Y_ Z_ R3. F600;  F=S×螺距\n'},
+ {t:'子程序调用', c:'M98 P2001 L1;\n'},
+ {t:'程序结束', c:'M05;\nM09;\nM30;\n'}
+];
+/* ================= 模态组 ================= */
+const GROUP_MEMBERS = {
+ '01':['G00','G01','G02','G03'], '02':['G17','G18','G19'], '03':['G90','G91'],
+ '05':['G94','G95'], '06':['G20','G21'], '07':['G40','G41','G42'], '08':['G43','G44','G49'],
+ '09':['G80','G81','G82','G83','G84','G85','G86','G73','G74','G76'], '10':['G98','G99'],
+ '14':['G54','G55','G56','G57','G58','G59'], '15':['G15','G16'], '16':['G68','G69'], '18':['G50.1','G51.1']
+};
+const GROUP_DEFAULTS = {'01':'G01','02':'G17','03':'G90','05':'G94','06':'G21','07':'G40','08':'G49','09':'G80','10':'G99','14':'G54','15':'G15','16':'G69','18':'G50.1'};
+const GCODE_MAP = {}; GCODES.forEach(function(x){GCODE_MAP[x.c]=x;});
+const MCODE_MAP = {}; MCODES.forEach(function(x){MCODE_MAP[x.c]=x;});
+/* ================= 工具函数 ================= */
+function fmtNum(v){ if(Number.isInteger(v)) return String(v); var r=Math.round(v*10000)/10000; return String(r); }
+function normG(g){ var n=parseInt(g.slice(1),10); if(isNaN(n)) return g.toUpperCase(); return n<10?('G0'+n):('G'+n); }
+function normM(m){ var n=parseInt(m.slice(1),10); if(isNaN(n)) return m.toUpperCase(); return n<10?('M0'+n):('M'+n); }
+function el(id){ return document.getElementById(id); }
+/* ================= 解析 ================= */
+function normFullWidth(s){
+  return s
+    .replace(/[Ａ-Ｚａ-ｚ]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); })
+    .replace(/[０-９]/g,function(c){ return String.fromCharCode(c.charCodeAt(0)-0xFEE0); })
+    .replace(/；/g,';').replace(/：/g,':').replace(/，/g,',').replace(/（/g,'(').replace(/）/g,')')
+    .replace(/／/g,'/').replace(/＃/g,'#').replace(/　/g,' ');
+}
+function tokenize(line){
+  var src=normFullWidth(line);
+  var body=src.replace(/\([^)]*\)/g,'').replace(/;.*$/,'').trim();
+  if(!body) return null;
+  var gs=[],ms=[],addr={},words=[],bad=[];
+  var re=/[A-Za-z][+-]?\d*\.?\d*/g,m;
+  while((m=re.exec(body))){
+    var ch=m[0][0].toUpperCase(), raw=m[0], val=parseFloat(raw.slice(1));
+    if(isNaN(val)){ bad.push(raw); continue; }
+    if(ch==='G') gs.push(raw.toUpperCase());
+    else if(ch==='M') ms.push(raw.toUpperCase());
+    else if(ch==='O'){ addr.O=raw.toUpperCase(); words.push({ch:ch,val:raw.toUpperCase()}); }
+    else { addr[ch]=val; words.push({ch:ch,val:val}); }
+  }
+  var leftover=body.replace(re,' ').split(/\s+/).filter(function(s){return s;});
+  leftover.forEach(function(s){
+    if(/^[.,:;!?'"`=+\-*\/\\|]+$/.test(s)) return;   /* 纯标点/符号忽略（如：全角冒号分号归一后残留） */
+    bad.push(s);
+  });
+  return {src:src.trim(),gs:gs,ms:ms,addr:addr,words:words,bad:bad};
+}
+/* ================= 解释器 ================= */
+function interpretProgram(text){
+  var rawLines=text.split(/\r?\n/);
+  var state={}; Object.keys(GROUP_DEFAULTS).forEach(function(g){state[g]=GROUP_DEFAULTS[g];});
+  var hasCoordSys=false, hasEnd=false, lines=[], issues=[], lastS=0;
+  var pos={x:0,y:0,z:0}; /* 刀具当前位置跟踪（用于预估执行结果） */
+  rawLines.forEach(function(src,idx){
+    var tk=tokenize(src);
+    if(!tk) return;
+    var no=idx+1, note=[], lineIssues=[], facts=[], alt=null;
+    tk.gs=tk.gs.map(normG); tk.ms=tk.ms.map(normM);
+    var gset={}; tk.gs.forEach(function(g){gset[g]=1;});
+    var mset={}; tk.ms.forEach(function(m){mset[m]=1;});
+    tk.gs.forEach(function(g){ if(!GCODE_MAP[g]) lineIssues.push({lv:'err',msg:'未收录的 G 代码 '+g+'（速查表为常用指令集）'}); });
+    tk.ms.forEach(function(m){ if(!MCODE_MAP[m]) lineIssues.push({lv:'err',msg:'未收录的 M 代码 '+m}); });
+    if(tk.bad && tk.bad.length){
+      tk.bad.forEach(function(b){
+        var msg;
+        if(/^[A-Za-z]+$/.test(b)) msg='字 "'+b+'" 后缺少数值（如 '+b+'15）';
+        else if(/^[+\-]?\d/.test(b)) msg='非法字 "'+b+'"：字必须以地址字母开头，数字前可能漏写了地址字母（如 Z-2 表示 Z 向 -2）';
+        else msg='非法字 "'+b+'"：FANUC 程序字必须以地址字母（X/Y/Z/F/S/G/M 等）开头';
+        lineIssues.push({lv:'err',msg:msg});
+      });
+    }
+    var cur={}; Object.keys(GROUP_MEMBERS).forEach(function(gp){
+      for(var i=0;i<tk.gs.length;i++){ if(GROUP_MEMBERS[gp].indexOf(tk.gs[i])>-1) state[gp]=tk.gs[i]; }
+      cur[gp]=state[gp];
+    });
+    var arc=(cur['01']==='G02'||cur['01']==='G03');
+    var arcExplicit=(gset['G02']||gset['G03']);
+    var inCycle=(cur['09']!=='G80');
+    var polar=(cur['15']==='G16');
+    var A=tk.addr, sVal=('S' in A)?A.S:lastS;
+    if('S' in A) lastS=A.S;
+    if(tk.gs.some(function(g){return /^G(5[4-9]|92|53)$/.test(g);})) hasCoordSys=true;
+    if(tk.ms.some(function(m){return m==='M30'||m==='M02';})) hasEnd=true;
+    /* ---- 行内检查 ---- */
+    if(arcExplicit){
+      var hasI=('I' in A), hasJ=('J' in A), hasK=('K' in A), hasR=('R' in A);
+      if(hasR && (hasI||hasJ||hasK)) lineIssues.push({lv:'warn',msg:'R 与 I/J/K 同时出现，程序可能报警，建议只保留一种'});
+      if(!hasR && !(hasI&&hasJ)) lineIssues.push({lv:'err',msg:'圆弧缺少半径 R 或圆心矢量（G17 平面需 I、J 成对）'});
+      if(hasI!==hasJ && !hasR) lineIssues.push({lv:'warn',msg:'G17 平面下圆弧 I、J 应成对出现'});
+    }
+    if((gset['G41']||gset['G42']) && !('D' in A)) lineIssues.push({lv:'warn',msg:'G41/G42 未指定刀补号 D'});
+    if((gset['G43']||gset['G44']) && !('H' in A)) lineIssues.push({lv:'warn',msg:'G43/G44 未指定长度补偿号 H'});
+    if((gset['G41']||gset['G42']||gset['G40']) && !('X' in A) && !('Y' in A)) lineIssues.push({lv:'info',msg:'刀补建立/取消建议带移动指令，在安全位置完成'});
+    var cycleInstr=tk.gs.filter(function(g){return /^G(73|74|76|81|82|83|84|85|86)$/.test(g);});
+    if(cycleInstr.length){
+      if(!('Z' in A)) lineIssues.push({lv:'warn',msg:'固定循环未指定孔底 Z'});
+      if(!('R' in A)) lineIssues.push({lv:'warn',msg:'固定循环未指定 R 点平面'});
+      if(cur['09']==='G84'||cur['09']==='G74'){
+        if(!('F' in A)) lineIssues.push({lv:'warn',msg:'攻丝未指定进给 F（刚性攻丝 F=S×螺距）'});
+        else if(sVal) lineIssues.push({lv:'info',msg:'攻丝校验：F 应为 S×螺距（S='+fmtNum(sVal)+'、螺距1.5，则 F='+fmtNum(sVal*1.5)+'）'});
+      }
+    }
+    if(gset['G04'] && !('P' in A) && !('X' in A)) lineIssues.push({lv:'warn',msg:'G04 未指定暂停时间（P 单位毫秒）'});
+    if(mset['M98'] && !('P' in A)) lineIssues.push({lv:'err',msg:'M98 未指定子程序号 P'});
+    if(cur['18']==='G51.1' && (gset['G41']||gset['G42']||cur['07']!=='G40')) lineIssues.push({lv:'info',msg:'镜像状态下刀补方向（G41/G42）会反向，注意过切'});
+    if(gset['G52']) lineIssues.push({lv:'info',msg:'G52 设定局部坐标系，用后须 G52 X0 Y0 取消'});
+        /* ---- 逐字解释 ---- */
+    if('O' in A) note.push('程序号 '+A.O);
+    if('N' in A) note.push('程序段号 N'+fmtNum(A.N));
+    tk.gs.forEach(function(g){ var x=GCODE_MAP[g]; note.push(x? (x.c+' '+x.n+(x.m?'（模态 '+x.g+' 组）':'（非模态）')):g); });
+    tk.ms.forEach(function(m){ var x=MCODE_MAP[m]; note.push(x? (x.c+' '+x.n):m); });
+    ['X','Y','Z'].forEach(function(ch){
+      if(!(ch in A)) return;
+      var v=A[ch];
+      if(polar && (ch==='X'||ch==='Y')){ note.push(ch+'='+fmtNum(v)+' 极坐标'+(ch==='X'?'半径':'角度')); return; }
+      var abs=(cur['03']==='G90');
+      var ax={X:'X 轴',Y:'Y 轴',Z:'Z 轴'}[ch];
+      if(ch==='Z' && inCycle){ note.push('Z='+fmtNum(v)+' 孔底深度（'+(abs?'绝对':'增量')+'）'); return; }
+      note.push(ax+'终点坐标 '+fmtNum(v)+'（'+(abs?'绝对':'增量')+'）');
+    });
+    if('I' in A) note.push('I='+fmtNum(A.I)+(arc?' 圆心相对起点 X 向增量':'（圆心矢量，圆弧指令有效）'));
+    if('J' in A) note.push('J='+fmtNum(A.J)+(arc?' 圆心相对起点 Y 向增量':'（圆心矢量，圆弧指令有效）'));
+    if('K' in A) note.push('K='+fmtNum(A.K)+(arc?' 圆心相对起点 Z 向增量':'（圆心矢量，圆弧指令有效）'));
+    if('R' in A){ note.push(arc? ('R='+fmtNum(A.R)+' 圆弧半径（整圆禁用 R，须用 I J K）'):(inCycle? ('R='+fmtNum(A.R)+' R 点平面高度'):('R='+fmtNum(A.R)+' 参数'))); }
+    if('Q' in A) note.push('Q='+fmtNum(A.Q)+' 每次啄削深度/退屑量');
+    if('P' in A){
+      if(gset['G04']) note.push('P='+fmtNum(A.P)+' 暂停时间（毫秒）');
+      else if(cur['09']==='G82') note.push('P='+fmtNum(A.P)+' 孔底暂停时间（毫秒）');
+      else if(mset['M98']) note.push('P='+fmtNum(A.P)+' 子程序号 O'+fmtNum(A.P));
+      else note.push('P='+fmtNum(A.P)+'（参数，依指令含义：暂停/子程序号/次数）');
+    }
+    if('F' in A) note.push('F='+fmtNum(A.F)+(cur['05']==='G95'?' 进给速度 mm/r':' 进给速度 mm/min'));
+    if('S' in A) note.push('S='+fmtNum(A.S)+' 主轴转速 r/min');
+    if('T' in A) note.push('T'+fmtNum(A.T)+' 号刀具'+(mset['M06']?'（换刀）':''));
+    if('D' in A) note.push('D'+fmtNum(A.D)+' 半径补偿号');
+    if('H' in A) note.push('H'+fmtNum(A.H)+' 长度补偿号');
+    if('L' in A) note.push('L='+fmtNum(A.L)+' 重复次数');
+    /* ---- 预估执行结果（facts）与圆弧替代写法（alt）---- */
+    var abs=(cur['03']==='G90');
+    var sx0=pos.x, sy0=pos.y;
+    if(arc){
+      var exA=('X' in A)?A.X:null, eyA=('Y' in A)?A.Y:null;
+      var hasXY=(exA!==null&&eyA!==null);
+      if(('I' in A)||('J' in A)){
+        var ix0=('I' in A)?A.I:0, jy0=('J' in A)?A.J:0;
+        var r0=Math.hypot(ix0,jy0);
+        facts.push('圆心：相对起点 I'+fmtNum(ix0)+' J'+fmtNum(jy0)+'，绝对位置 X'+fmtNum(sx0+ix0)+' Y'+fmtNum(sy0+jy0)+'，半径 R'+fmtNum(r0));
+        if(hasXY && r0>1e-6){
+          alt='R 方式：'+cur['01']+' X'+fmtNum(exA)+' Y'+fmtNum(eyA)+' R'+fmtNum(r0)+(('F' in A)?(' F'+fmtNum(A.F)):'');
+        } else if(!hasXY){
+          alt='整圆（未给终点坐标）必须用 I J K 指定圆心，R 方式无法表示整圆';
+        }
+      } else if('R' in A){
+        if(hasXY){
+          var dx0=exA-sx0, dy0=eyA-sy0, d0=Math.hypot(dx0,dy0);
+          if(d0<1e-9){
+            alt='起点=终点（整圆），R 方式无法表示，请改用 I J K';
+          } else {
+            var R0=Math.abs(A.R);
+            if(R0<d0/2-1e-6){
+              alt='半径 R'+fmtNum(A.R)+' 小于弦长一半，无法构成圆弧';
+            } else {
+              var h0=Math.sqrt(Math.max(0,R0*R0-d0*d0/4));
+              var mx0=(sx0+exA)/2, my0=(sy0+eyA)/2;
+              var nx0=-dy0/d0, ny0=dx0/d0;
+              function sweepPick0(cxx,cyy){
+                var a1=Math.atan2(sy0-cyy,sx0-cxx), a2=Math.atan2(eyA-cyy,exA-cxx);
+                var sw;
+                if(cur['01']==='G02'){ sw=a1-a2; if(sw<0) sw+=2*Math.PI; }
+                else { sw=a2-a1; if(sw<0) sw+=2*Math.PI; }
+                return sw;
+              }
+              var s10=sweepPick0(mx0+h0*nx0,my0+h0*ny0), s20=sweepPick0(mx0-h0*nx0,my0-h0*ny0);
+              var big0=(A.R<0);
+              var ok10=(s10>Math.PI)===big0, ok20=(s20>Math.PI)===big0;
+              var cx0,cy0;
+              if(ok10&&!ok20){ cx0=mx0+h0*nx0; cy0=my0+h0*ny0; }
+              else if(ok20&&!ok10){ cx0=mx0-h0*nx0; cy0=my0-h0*ny0; }
+              else if(Math.abs(s10-Math.PI)<=Math.abs(s20-Math.PI)){ cx0=mx0+h0*nx0; cy0=my0+h0*ny0; }
+              else { cx0=mx0-h0*nx0; cy0=my0-h0*ny0; }
+              facts.push('圆心：绝对位置 X'+fmtNum(cx0)+' Y'+fmtNum(cy0)+'（相对起点 I'+fmtNum(cx0-sx0)+' J'+fmtNum(cy0-sy0)+'），半径 R'+fmtNum(R0));
+              alt='I J 方式：'+cur['01']+' X'+fmtNum(exA)+' Y'+fmtNum(eyA)+' I'+fmtNum(cx0-sx0)+' J'+fmtNum(cy0-sy0)+(('F' in A)?(' F'+fmtNum(A.F)):'');
+            }
+          }
+        } else {
+          alt='本行未给出终点坐标，无法换算 I J（整圆请用 I J K）';
+        }
+      }
+    }
+    /* 更新刀具位置（预估终点坐标） */
+    var moved=false;
+    ['X','Y','Z'].forEach(function(ch){
+      if(!(ch in A)) return;
+      var v=A[ch];
+      if(polar && (ch==='X'||ch==='Y')){ return; }
+      var key=ch.toLowerCase();
+      var nv=abs?v:(pos[key]+v);
+      pos[key]=nv; moved=true;
+    });
+    if(moved){
+      var fz='执行后位置：X'+fmtNum(pos.x)+' Y'+fmtNum(pos.y)+' Z'+fmtNum(pos.z);
+      if(cur['03']==='G91') fz+='（G91 增量累计）';
+      facts.push(fz);
+    }
+    if('F' in A) facts.push('进给 F'+fmtNum(A.F)+(cur['05']==='G95'?' mm/r':' mm/min'));
+    if('S' in A) facts.push('主轴 S'+fmtNum(A.S)+' r/min');
+    if(mset['M03']) facts.push('主轴正转');
+    if(mset['M04']) facts.push('主轴反转');
+    if(mset['M05']) facts.push('主轴停止');
+    if(mset['M08']) facts.push('冷却液开');
+    if(mset['M09']) facts.push('冷却液关');
+    if(mset['M06']) facts.push('自动换刀');
+    if(gset['G90']||gset['G91']) facts.push('坐标模式：'+(cur['03']==='G90'?'绝对 G90':'增量 G91'));
+    if(!note.length) note.push('（本段无 G/M 或坐标字，仅注释/空操作）');
+    var st='ok';
+    lineIssues.forEach(function(iss){ if(iss.lv==='err') st='err'; else if(iss.lv==='warn'&&st!=='err') st='warn'; else if(iss.lv==='info'&&st==='ok') st='info'; });
+    lines.push({no:no,src:tk.src,note:note,st:st,issues:lineIssues,facts:facts,alt:alt});
+    lineIssues.forEach(function(iss){ issues.push({no:no,lv:iss.lv,msg:iss.msg}); });
+  });
+  if(!hasCoordSys) issues.push({no:1,lv:'info',msg:'程序未出现 G54-G59 / G92 / G53，请确认工件坐标系已建立'});
+  if(!hasEnd) issues.push({no:rawLines.length||1,lv:'warn',msg:'程序未以 M30（或 M02）结束'});
+  return {lines:lines,issues:issues};
+}
+/* ================= 渲染：速查 ================= */
+var refCat='all', refKw='';
+function buildTabs(){
+  var box=el('refTabs'); box.innerHTML='';
+  CATS.forEach(function(c){
+    var b=document.createElement('button'); b.type='button';
+    b.className='chip'+(refCat===c.k?' on':'');
+    b.textContent=c.n;
+    b.addEventListener('click',function(){ refCat=c.k; buildTabs(); renderRef(); });
+    box.appendChild(b);
+  });
+}
+function renderRef(){
+  var kw=refKw.trim().toLowerCase();
+  var list=CODES.filter(function(x){
+    if(refCat!=='all' && x.k!==refCat) return false;
+    if(!kw) return true;
+    return x.c.toLowerCase().indexOf(kw)>-1 || x.n.indexOf(kw)>-1 || (x.d&&x.d.indexOf(kw)>-1) || (x.f&&x.f.indexOf(kw)>-1);
+  });
+  var box=el('refList'); box.innerHTML='';
+  if(!list.length){ box.innerHTML='<div class="empty-state">没有匹配的指令，换个关键词试试。</div>'; return; }
+  list.forEach(function(x){
+    var it=document.createElement('div'); it.className='code-item';
+    var top=document.createElement('div'); top.className='top';
+    var c=document.createElement('span'); c.className='c'; c.textContent=x.c;
+    var n=document.createElement('span'); n.className='n'; n.textContent=x.n;
+    var g=document.createElement('span'); g.className='g'; g.textContent=(x.m?'模态':'非模态')+(x.g!=='—'?(' '+x.g+'组'):'');
+    top.appendChild(c); top.appendChild(n); top.appendChild(g);
+    var det=document.createElement('div'); det.className='detail';
+    var f=document.createElement('span'); f.className='fmt'; f.textContent=x.f;
+    var d=document.createElement('div'); d.textContent=x.d;
+    det.appendChild(f); det.appendChild(d);
+    if(x.t){ var tp=document.createElement('div'); tp.className='tip'; tp.textContent='易错：'+x.t; det.appendChild(tp); }
+    it.appendChild(top); it.appendChild(det);
+    it.addEventListener('click',function(){ it.classList.toggle('open'); });
+    box.appendChild(it);
+  });
+}
+/* ================= 渲染：解释输出 ================= */
+function renderOut(result){
+  var counts={err:0,warn:0,info:0,ok:0};
+  result.lines.forEach(function(l){ counts[l.st]=(counts[l.st]||0)+1; });
+  result.issues.forEach(function(iss){ if(iss.lv==='err') counts.err=(counts.err||0)+1; });
+  var sb=el('statsBar'); sb.innerHTML='';
+  var st=[['ok',counts.ok||0,'正常'],['info',counts.info||0,'提示'],['warn',counts.warn||0,'警告'],['err',counts.err||0,'错误']];
+  st.forEach(function(s){
+    var d=document.createElement('div'); d.className='stat';
+    d.innerHTML='<span>'+s[2]+'</span><b class="'+s[0]+'">'+s[1]+'</b>';
+    sb.appendChild(d);
+  });
+  var ln=document.createElement('div'); ln.className='stat'; ln.style.marginLeft='auto';
+  ln.innerHTML='<span>程序行</span><b>'+result.lines.length+'</b>';
+  sb.appendChild(ln);
+  var ib=el('issuesBox'); ib.innerHTML='';
+  if(!issues_len(result)){ ib.innerHTML='<div class="issue info"><span>未发现明显问题，注意按实际机床核对参数。</span></div>'; }
+  else{
+    var lvName={err:'错误',warn:'警告',info:'提示'};
+    result.issues.forEach(function(iss){
+      var d=document.createElement('div'); d.className='issue '+iss.lv;
+      d.innerHTML='<span class="ln">L'+iss.no+'</span><span>['+lvName[iss.lv]+'] '+iss.msg+'</span>';
+      ib.appendChild(d);
+    });
+  }
+  var lb=el('explainList'); lb.innerHTML='';
+  result.lines.forEach(function(l){
+    var d=document.createElement('div'); d.className='line-item '+l.st; d.setAttribute('data-no',l.no);
+    var h=document.createElement('div');
+    h.innerHTML='<span class="ln">'+l.no+'</span><span class="lbl">'+(l.st==='err'?'错误':l.st==='warn'?'警告':l.st==='info'?'提示':'正常')+'</span>';
+    var s=document.createElement('span'); s.className='src'; s.textContent=l.src;
+    d.appendChild(h); d.appendChild(s);
+    /* ① 错误检查明细 */
+    if(l.issues && l.issues.length){
+      var iss=document.createElement('div'); iss.className='line-issues';
+      var lvName={err:'错误',warn:'警告',info:'提示'};
+      l.issues.forEach(function(ig){
+        var it2=document.createElement('div'); it2.className='li-issue '+ig.lv;
+        it2.innerHTML='<span class="li-lv">['+lvName[ig.lv]+']</span> '+ig.msg;
+        iss.appendChild(it2);
+      });
+      d.appendChild(iss);
+    }
+    /* ② 预估准确内容 */
+    if(l.facts && l.facts.length){
+      var fa=document.createElement('div'); fa.className='facts';
+      fa.innerHTML='<span class="fa-t">预估执行结果</span>';
+      var ft=document.createElement('div'); ft.className='facts-b'; ft.textContent=l.facts.join('；');
+      fa.appendChild(ft);
+      d.appendChild(fa);
+    }
+    /* ③ 解释程序 */
+    var nn=document.createElement('div'); nn.className='note';
+    nn.innerHTML='<span class="fa-t">解释</span>';
+    var nt=document.createElement('div'); nt.className='note-b'; nt.textContent=l.note.join('　');
+    nn.appendChild(nt);
+    d.appendChild(nn);
+    /* ④ 圆弧替代写法 */
+    if(l.alt){
+      var al=document.createElement('div'); al.className='alt';
+      al.innerHTML='<span class="fa-t">另一种写法</span>';
+      var ab=document.createElement('div'); ab.className='alt-b'; ab.textContent=l.alt;
+      al.appendChild(ab);
+      d.appendChild(al);
+    }
+    lb.appendChild(d);
+  });
+}
+function issues_len(result){ return result.issues.length; }
+/* ================= 编辑器辅助 ================= */
+function insertAtCursor(txt){
+  var ta=el('code'), s=ta.selectionStart, e=ta.selectionEnd;
+  var v=ta.value;
+  ta.value=v.slice(0,s)+txt+v.slice(e);
+  ta.selectionStart=ta.selectionEnd=s+txt.length;
+  ta.focus();
+  refreshLineNo();
+}
+/* ===== 行号栏：刷新与滚动同步 ===== */
+function refreshLineNo(){
+  var ta=el('code'); if(!ta) return;
+  var n=(ta.value.match(/\n/g)||[]).length+1;
+  var inner=el('lineNoInner'); if(!inner) return;
+  var s='';
+  for(var i=1;i<=n;i++) s+=i+'\n';
+  inner.textContent=s;
+  syncLineNo();
+}
+function syncLineNo(){
+  var ta=el('code'), inner=el('lineNoInner');
+  if(!ta||!inner) return;
+  inner.style.transform='translateY('+(-ta.scrollTop)+'px)';
+}
+/* ===== 编辑器↔逐行解释 双向联动定位 ===== */
+function lineNoAtPos(v,pos){
+  var n=1;
+  for(var i=0;i<pos;i++){ if(v.charCodeAt(i)===10) n++; }
+  return n;
+}
+function locateEditorLine(no){
+  var ta=el('code'); if(!ta) return;
+  var v=ta.value;
+  var pos=0;
+  for(var i=1;i<no;i++){ var nx=v.indexOf('\n',pos); if(nx<0){ pos=v.length; break; } pos=nx+1; }
+  var end=v.indexOf('\n',pos); if(end<0) end=v.length;
+  ta.focus();
+  try{ ta.setSelectionRange(pos,end); }catch(e){}
+  var lh=parseFloat(getComputedStyle(ta).lineHeight)||24;
+  ta.scrollTop=Math.max(0,(no-1)*lh-60);
+  syncLineNo();
+}
+function locateExplainLine(no){
+  var lb=el('explainList'); if(!lb) return;
+  var item=lb.querySelector('.line-item[data-no="'+no+'"]');
+  if(!item) return;
+  item.scrollIntoView({block:'nearest'});
+  item.classList.add('link-flash');
+  setTimeout(function(){ item.classList.remove('link-flash'); },600);
+}
+function runExplain(){
+  var ta=el('code'), txt=ta.value.trim();
+  refreshLineNo();
+  if(!txt){ el('explainList').innerHTML='<div class="empty-state">请先输入程序，或从「载入示例程序」开始。</div>'; el('statsBar').innerHTML=''; el('issuesBox').innerHTML=''; el('pathSvgBox').innerHTML=''; el('pathMeta').innerHTML=''; lastPath=null; return; }
+  renderOut(interpretProgram(txt));
+  var compOn=el('compOn'), compR=parseFloat(el('compRadius').value)||0;
+  if(/G4[12]/.test(txt) && !compOn.checked) compOn.checked=true;
+  lastPath=computeToolpath(txt, (compOn.checked&&compR>0)?compR:0);
+  if(el('pathView').style.display!=='none') renderPath(lastPath);
+}
+/* ============ 刀轨：计算与渲染 ============ */
+function computeBounds(segs,marks){
+  var pts=[];
+  segs.forEach(function(s){ pts.push([s.x1,s.y1],[s.x2,s.y2]); if(s.pts) s.pts.forEach(function(p){pts.push(p);}); });
+  marks.forEach(function(m){ pts.push([m.x,m.y]); });
+  if(!pts.length) return null;
+  var x1=Infinity,y1=Infinity,x2=-Infinity,y2=-Infinity;
+  pts.forEach(function(p){ if(p[0]<x1)x1=p[0]; if(p[0]>x2)x2=p[0]; if(p[1]<y1)y1=p[1]; if(p[1]>y2)y2=p[1]; });
+  return {x1:x1,y1:y1,x2:x2,y2:y2};
+}
+/* 圆弧段：start/end 为绘制坐标（含 {x,y}），A 为地址字，cw 为顺时针，tr 为坐标变换函数 */
+function arcSegment(start,end,A,cw,tr,notes){
+  var x1=start.x,y1=start.y,x2=end.x,y2=end.y;
+  var hasI=('I' in A), hasJ=('J' in A), hasR=('R' in A);
+  var cx,cy,r;
+  if(hasI||hasJ){
+    var ix=hasI?A.I:0, jy=hasJ?A.J:0;
+    var c=tr({x:start.px+ix, y:start.py+jy});
+    cx=c.x; cy=c.y;
+    r=Math.hypot(cx-x1,cy-y1);
+    if(r<1e-6){ notes.push('圆弧半径过小，忽略该段'); return null; }
+  } else if(hasR){
+    var dx=x2-x1, dy=y2-y1, d=Math.hypot(dx,dy);
+    if(d<1e-9){ notes.push('圆弧起点与终点重合且无 I J K，无法确定圆心'); return null; }
+    var R=Math.abs(A.R);
+    if(R<d/2-1e-6){ notes.push('圆弧半径 '+R+' 小于弦长一半，无法构成圆弧'); return null; }
+    var h=Math.sqrt(Math.max(0,R*R-d*d/4));
+    var mx=(x1+x2)/2, my=(y1+y2)/2;
+    var nx=-dy/d, ny=dx/d;
+    function sweepPick(cx,cy){
+      var a1=Math.atan2(y1-cy,x1-cx), a2=Math.atan2(y2-cy,x2-cx);
+      var sw;
+      if(cw){ sw=a1-a2; if(sw<0) sw+=2*Math.PI; } else { sw=a2-a1; if(sw<0) sw+=2*Math.PI; }
+      return sw;
+    }
+    var s1=sweepPick(mx+h*nx,my+h*ny), s2=sweepPick(mx-h*nx,my-h*ny);
+    var big=(A.R<0);
+    var ok1=(s1>Math.PI)===big, ok2=(s2>Math.PI)===big;
+    if(ok1&&!ok2){ cx=mx+h*nx; cy=my+h*ny; }
+    else if(ok2&&!ok1){ cx=mx-h*nx; cy=my-h*ny; }
+    else if(Math.abs(s1-Math.PI)<=Math.abs(s2-Math.PI)){ cx=mx+h*nx; cy=my+h*ny; }
+    else { cx=mx-h*nx; cy=my-h*ny; }
+    r=Math.hypot(cx-x1,cy-y1);
+  } else { notes.push('圆弧缺少 R 或 I J K'); return null; }
+  var a1=Math.atan2(y1-cy,x1-cx), a2=Math.atan2(y2-cy,x2-cx);
+  var sweep;
+  if(cw){ sweep=a1-a2; if(sweep<0) sweep+=2*Math.PI; } else { sweep=a2-a1; if(sweep<0) sweep+=2*Math.PI; }
+  if(sweep<1e-6) sweep=2*Math.PI;
+  var n=Math.max(10,Math.ceil(sweep/(Math.PI/30)));
+  var pts=[];
+  for(var i=0;i<=n;i++){
+    var a=cw?(a1-i/n*sweep):(a1+i/n*sweep);
+    pts.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]);
+  }
+  return {x1:x1,y1:y1,x2:x2,y2:y2,kind:'arc',cw:cw,pts:pts,cx:cx,cy:cy,r:r};
+}
+/* 主计算：解析程序 → 生成刀轨段与孔位标记（子程序自动展开） */
+function computeToolpath(text, compR){
+  var segs=[], marks=[], notes=[], compFound=false;
+  var lines=text.split(/\r?\n/);
+  var progs={}, order=[], cur=null;
+  lines.forEach(function(l){
+    var tk=tokenize(l);
+    if(tk&&tk.addr.O){ cur=tk.addr.O; progs[cur]=[]; order.push(cur); }
+    else if(cur!==null){ progs[cur].push(l); }
+  });
+  var main=order[0];
+  if(!main){ notes.push('未识别到程序号（缺少 O 段）'); return {segs:segs,marks:marks,notes:notes,bounds:null}; }
+  var state={}; Object.keys(GROUP_DEFAULTS).forEach(function(g){state[g]=GROUP_DEFAULTS[g];});
+  var pos=null, offX=0, offY=0, rot=0, rotCX=0, rotCY=0, mirrorX=false, mirrorY=false, startMarked=false;
+  function tr(p){
+    var x=p.x, y=p.y;
+    if(mirrorX) x=-x;
+    if(mirrorY) y=-y;
+    if(rot!==0){
+      var c=Math.cos(rot*Math.PI/180), s=Math.sin(rot*Math.PI/180);
+      var dx=x-rotCX, dy=y-rotCY;
+      x=rotCX+dx*c-dy*s; y=rotCY+dx*s+dy*c;
+    }
+    return {x:x+offX, y:y+offY};
+  }
+  function execProg(name,depth){
+    if(depth>4){ notes.push('子程序嵌套超过 4 层，停止展开'); return; }
+    var body=progs[name]||[];
+    body.forEach(function(raw){
+      var tk=tokenize(raw);
+      if(!tk) return;
+      tk.gs=tk.gs.map(normG); tk.ms=tk.ms.map(normM);
+      var gset={}; tk.gs.forEach(function(g){gset[g]=1;});
+      var mset={}; tk.ms.forEach(function(m){mset[m]=1;});
+      var compBefore=state['07'];
+      Object.keys(GROUP_MEMBERS).forEach(function(gp){
+        for(var i=0;i<tk.gs.length;i++){ if(GROUP_MEMBERS[gp].indexOf(tk.gs[i])>-1) state[gp]=tk.gs[i]; }
+      });
+      var A=tk.addr;
+      if(gset['G41']||gset['G42']) compFound=true;
+      if(gset['G68']){ rot=('R' in A)?A.R:0; rotCX=('X' in A)?A.X:0; rotCY=('Y' in A)?A.Y:0; }
+      if(gset['G69']){ rot=0; }
+      if(gset['G51.1']){ if('X' in A) mirrorX=true; if('Y' in A) mirrorY=true; }
+      if(gset['G50.1']){ if('X' in A) mirrorX=false; if('Y' in A) mirrorY=false; }
+      if(gset['G52']){ offX=('X' in A)?A.X:0; offY=('Y' in A)?A.Y:0; }
+      if(mset['M98']){
+        var pnum=('P' in A)?('O'+Math.round(A.P)):null;
+        var times=('L' in A)?Math.max(1,Math.round(A.L)):1;
+        if(pnum&&progs[pnum]){ for(var k=0;k<times;k++) execProg(pnum,depth+1); }
+        else notes.push('未找到子程序 '+pnum+'，已跳过');
+        return;
+      }
+      var motion=state['01'], polar=state['15']==='G16';
+      var isArc=(motion==='G02'||motion==='G03');
+      /* 变换指令行（G68/G52/G51.1 等）的参数 X Y 是变换参数而非移动目标，行内无运动指令时不产生刀轨 */
+      var transLine=gset['G68']||gset['G69']||gset['G51.1']||gset['G50.1']||gset['G52'];
+      var hasMotionG=false;
+      for(var gi2=0;gi2<tk.gs.length;gi2++){ var gg=tk.gs[gi2]; if(gg==='G00'||gg==='G01'||gg==='G02'||gg==='G03') hasMotionG=true; }
+      if(transLine && !hasMotionG) return;
+      var hasXY=('X' in A)||('Y' in A)||(isArc&&(('I' in A)||('J' in A)||('R' in A)));
+      if(!hasXY) return;
+      var tx,ty;
+      if(polar){
+        var ang=('Y' in A)?A.Y:null, rp=('X' in A)?A.X:null;
+        if(pos){ if(rp===null) rp=Math.hypot(pos.px,pos.py); if(ang===null) ang=Math.atan2(pos.py,pos.px)*180/Math.PI; }
+        else { rp=rp||0; ang=ang||0; }
+        var rad2=ang*Math.PI/180;
+        tx=rp*Math.cos(rad2); ty=rp*Math.sin(rad2);
+      } else if(state['03']==='G91' && pos){
+        tx=pos.px+(('X' in A)?A.X:0); ty=pos.py+(('Y' in A)?A.Y:0);
+      } else {
+        tx=('X' in A)?A.X:(pos?pos.px:0); ty=('Y' in A)?A.Y:(pos?pos.py:0);
+      }
+      if(isArc && !('X' in A) && !('Y' in A) && pos){ tx=pos.px; ty=pos.py; }
+      var target={x:tx,y:ty,px:tx,py:ty};
+      var draw=tr(target);
+      if(!startMarked){ var org=tr({x:0,y:0}); marks.push({x:org.x,y:org.y,kind:'start'}); startMarked=true; pos={px:0,py:0,dx:org.x,dy:org.y}; }
+      var cycleOn=/^G(73|74|76|81|82|83|84|85|86)$/.test(state['09']);
+      function samePt(a,b){ return Math.abs(a.dx-b.x)<1e-9&&Math.abs(a.dy-b.y)<1e-9; }
+      if(cycleOn){
+        marks.push({x:draw.x,y:draw.y,kind:'hole'});
+        if(pos&&!samePt(pos,draw)){ segs.push({x1:pos.dx,y1:pos.dy,x2:draw.x,y2:draw.y,kind:'rapid'}); }
+        pos={px:tx,py:ty,dx:draw.x,dy:draw.y};
+        return;
+      }
+      if(motion==='G00'||motion==='G01'){
+        if(pos&&!samePt(pos,draw)){ segs.push({x1:pos.dx,y1:pos.dy,x2:draw.x,y2:draw.y,kind:(motion==='G00'?'rapid':'cut'),compBefore:compBefore,compAfter:state['07'],establish:!!(gset['G41']||gset['G42']),cancel:!!gset['G40']}); }
+        pos={px:tx,py:ty,dx:draw.x,dy:draw.y};
+      } else if(motion==='G02'||motion==='G03'){
+        if(pos){
+          var seg=arcSegment({x:pos.dx,y:pos.dy,px:pos.px,py:pos.py},{x:draw.x,y:draw.y,px:tx,py:ty},A,motion==='G02',tr,notes);
+          if(seg){ seg.compBefore=compBefore; seg.compAfter=state['07']; seg.establish=!!(gset['G41']||gset['G42']); seg.cancel=!!gset['G40']; segs.push(seg); }
+          pos={px:tx,py:ty,dx:draw.x,dy:draw.y};
+        }
+      }
+    });
+  }
+  execProg(main,0);
+  var compSegs=null;
+  if(compR>0 && compFound) compSegs=buildCompSegs(segs,compR,notes);
+  var baseSegs=compSegs||segs;
+  return {segs:segs,marks:marks,notes:notes,bounds:computeBounds(baseSegs,marks),compSegs:compSegs,compFound:compFound,compR:(compR>0&&compSegs)?compR:0};
+}
+/* ===== 刀具半径补偿（G41/G42）示意线：轮廓整体偏置 ===== */
+function offLineSeg(x1,y1,x2,y2,side,r){
+  var dx=x2-x1, dy=y2-y1, d=Math.hypot(dx,dy);
+  if(d<1e-9) return null;
+  var nx=-dy/d*side*r, ny=dx/d*side*r;
+  return {x1:x1+nx,y1:y1+ny,x2:x2+nx,y2:y2+ny,kind:'cut'};
+}
+function offArcSeg(seg,side,r,notes){
+  var R0=seg.r, inward;
+  var a1=Math.atan2(seg.y1-seg.cy,seg.x1-seg.cx);
+  var tx,ty;
+  if(seg.cw){ tx=Math.sin(a1); ty=-Math.cos(a1); } else { tx=-Math.sin(a1); ty=Math.cos(a1); }
+  var vx=seg.x1-seg.cx, vy=seg.y1-seg.cy;
+  var cross=tx*vy-ty*vx;
+  if(side===1) inward=(cross<0); else inward=(cross>0);
+  var R1=R0+(inward?-r:r);
+  if(R1<=1e-6){ notes.push('刀补半径超过圆弧半径，内偏圆弧无法生成，该段保持编程轨迹'); return null; }
+  var a1=Math.atan2(seg.y1-seg.cy,seg.x1-seg.cx), a2=Math.atan2(seg.y2-seg.cy,seg.x2-seg.cx);
+  var sweep;
+  if(seg.cw){ sweep=a1-a2; if(sweep<0) sweep+=2*Math.PI; } else { sweep=a2-a1; if(sweep<0) sweep+=2*Math.PI; }
+  if(sweep<1e-6) sweep=2*Math.PI;
+  var n=Math.max(10,Math.ceil(sweep/(Math.PI/30)));
+  var pts=[];
+  for(var i=0;i<=n;i++){
+    var a=seg.cw?(a1-i/n*sweep):(a1+i/n*sweep);
+    pts.push([seg.cx+R1*Math.cos(a),seg.cy+R1*Math.sin(a)]);
+  }
+  return {x1:seg.cx+R1*Math.cos(a1),y1:seg.cy+R1*Math.sin(a1),x2:seg.cx+R1*Math.cos(a2),y2:seg.cy+R1*Math.sin(a2),kind:'arc',cw:seg.cw,pts:pts,cx:seg.cx,cy:seg.cy,r:R1};
+}
+function lineIntersect(a,b){
+  var d1x=a.x2-a.x1,d1y=a.y2-a.y1,d2x=b.x2-b.x1,d2y=b.y2-b.y1;
+  var den=d1x*d2y-d1y*d2x;
+  if(Math.abs(den)<1e-9) return null;
+  var t=((b.x1-a.x1)*d2y-(b.y1-a.y1)*d2x)/den;
+  return {x:a.x1+t*d1x,y:a.y1+t*d1y};
+}
+function compMeta(dst,src){
+  dst.compBefore=src.compBefore; dst.compAfter=src.compAfter;
+  dst.establish=src.establish; dst.cancel=src.cancel;
+  return dst;
+}
+function offsetGroup(grp,side,r,notes){
+  var links=[];
+  var offs=grp.map(function(s){
+    if(s.kind==='arc') return offArcSeg(s,side,r,notes);
+    var o=offLineSeg(s.x1,s.y1,s.x2,s.y2,side,r);
+    return o?compMeta(o,s):null;
+  });
+  for(var i=0;i<offs.length-1;i++){
+    var a=offs[i],b=offs[i+1];
+    if(!a||!b) continue;
+    if(a.kind!=='arc'&&b.kind!=='arc'){
+      var pt=lineIntersect(a,b);
+      if(pt){ a.x2=pt.x; a.y2=pt.y; b.x1=pt.x; b.y1=pt.y; }
+    } else if(a.kind==='arc'&&b.kind!=='arc'){
+      b.x1=a.x2; b.y1=a.y2;
+    } else if(b.kind==='arc'&&a.kind!=='arc'){
+      a.x2=b.x1; a.y2=b.y1;
+    } else if(a.kind==='arc'&&b.kind==='arc'){
+      var dx2=b.x1-a.x2, dy2=b.y1-a.y2;
+      if(dx2*dx2+dy2*dy2>1e-6){
+        var link={x1:a.x2,y1:a.y2,x2:b.x1,y2:b.y1,kind:'cut'};
+        compMeta(link,a); link.establish=false; link.cancel=false;
+        links.push(link);
+      }
+    }
+  }
+  var first=offs[0], last=offs[offs.length-1];
+  if(first&&grp[0].compBefore==='G40'&&grp[0].kind!=='arc'){ first.x1=grp[0].x1; first.y1=grp[0].y1; }
+  if(last&&grp[grp.length-1].compAfter==='G40'&&grp[grp.length-1].kind!=='arc'){ last.x2=grp[grp.length-1].x2; last.y2=grp[grp.length-1].y2; }
+  var out=[], li=0;
+  for(var k=0;k<offs.length;k++){
+    if(offs[k]) out.push(compMeta(offs[k],grp[k])); else out.push(grp[k]);
+    if(k<offs.length-1 && links[li] && links[li].x1===offs[k].x2 && links[li].y1===offs[k].y2 && links[li].x2===offs[k+1].x1 && links[li].y2===offs[k+1].y1){ out.push(links[li]); li++; }
+  }
+  return out;
+}
+function buildCompSegs(segs,r,notes){
+  var compSegs=[],i=0;
+  while(i<segs.length){
+    var s=segs[i];
+    var sAct=(s.compAfter==='G41'||s.compAfter==='G42');
+    var sCan=(s.compAfter==='G40'&&(s.compBefore==='G41'||s.compBefore==='G42'));
+    if(!sAct&&!sCan){ compSegs.push(s); i++; continue; }
+    if(sCan){
+      var side0=(s.compBefore==='G41')?1:-1;
+      if(s.kind==='arc'){
+        var aoff=offArcSeg(s,side0,r,notes);
+        compSegs.push(aoff?compMeta(aoff,s):s);
+      } else {
+        var loff=offLineSeg(s.x1,s.y1,s.x2,s.y2,side0,r);
+        if(loff){ loff.x2=s.x2; loff.y2=s.y2; compSegs.push(compMeta(loff,s)); }
+        else compSegs.push(s);
+      }
+      i++; continue;
+    }
+    var side=(s.compAfter==='G41')?1:-1;
+    var grp=[],gi=i;
+    while(gi<segs.length){
+      var t=segs[gi];
+      var tAct=(t.compAfter==='G41'||t.compAfter==='G42');
+      if(!tAct||t.kind==='rapid') break;
+      var tSide=(t.compAfter==='G41')?1:-1;
+      if(tSide!==side) break;
+      grp.push(t); gi++;
+    }
+    if(grp.length){
+      var out=offsetGroup(grp,side,r,notes);
+      for(var k=0;k<out.length;k++) compSegs.push(out[k]);
+      i=gi;
+    } else { compSegs.push(s); i++; }
+  }
+  var arcLinkN=0;
+  for(var li2=0;li2<compSegs.length-1;li2++){
+    var A2=compSegs[li2], B2=compSegs[li2+1];
+    if(A2.kind==='arc'&&B2.kind==='arc'){ arcLinkN++; }
+    else if(A2.kind==='arc'&&B2.kind==='cut'&&li2+2<compSegs.length&&compSegs[li2+2].kind==='arc'){ arcLinkN++; }
+  }
+  if(arcLinkN>0) notes.push('圆弧-圆弧转接处为直线过渡示意（共 '+arcLinkN+' 处，实际由系统 C 功能刀补自动过渡）');
+  return compSegs;
+}
+/* 渲染刀轨 SVG */
+function renderPath(result){
+  var box=el('pathSvgBox'), meta=el('pathMeta');
+  if(!result.bounds){ box.innerHTML='<div class="empty-state">暂无刀轨数据（请检查程序是否含坐标运动）。</div>'; meta.innerHTML=''; return; }
+  var noteHtml=result.notes.length? result.notes.map(function(n){return '<div class="issue info"><span>'+n+'</span></div>';}).join('') : '';
+  var holes=0, starts=0;
+  result.marks.forEach(function(m){ if(m.kind==='hole') holes++; if(m.kind==='start') starts++; });
+  meta.innerHTML='<span>线段 '+result.segs.length+' · 孔位 '+holes+' · 起点 '+starts+'</span><span style="margin-left:auto">X '+(result.bounds.x1>=0?'+':'')+fmtNum(result.bounds.x1)+' ~ '+(result.bounds.x2>=0?'+':'')+fmtNum(result.bounds.x2)+' · Y '+(result.bounds.y1>=0?'+':'')+fmtNum(result.bounds.y1)+' ~ '+(result.bounds.y2>=0?'+':'')+fmtNum(result.bounds.y2)+'</span>'+noteHtml;
+  var b=result.bounds;
+  var span=Math.max(b.x2-b.x1,b.y2-b.y1,1);
+  var pad=span*0.08;
+  var vx1=b.x1-pad, vy1=b.y1-pad, vx2=b.x2+pad, vy2=b.y2+pad;
+  var mL=54, mR=16, mT=16, mB=28, plotW=720, plotH=460;
+  var W=mL+plotW+mR, H=mT+plotH+mB;
+  /* 等比例缩放：X/Y 每单位像素一致，图形不变形 */
+  var scale=Math.min(plotW/(vx2-vx1), plotH/(vy2-vy1));
+  var pw=(vx2-vx1)*scale, ph=(vy2-vy1)*scale;
+  var x0=mL+(plotW-pw)/2, y0=mT+(plotH-ph)/2;
+  function sx(x){ return x0+(x-vx1)*scale; }
+  function sy(y){ return y0+(vy2-y)*scale; }
+  function fmtC(v){ var r=Math.round(v*100)/100; if(Number.isInteger(r)) return String(r); return String(r); }
+  var step=Math.pow(10,Math.floor(Math.log10(span/8)));
+  var s= '<svg viewBox="0 0 '+W+' '+H+'" width="100%" role="img" aria-label="刀轨预览">';
+  s+='<rect width="'+W+'" height="'+H+'" fill="#fbfcfe"/>';
+  /* 网格 */
+  s+='<g stroke="#e8edf3">';
+  for(var gx=Math.ceil(vx1/step)*step; gx<=vx2; gx+=step){ s+='<line x1="'+sx(gx).toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+sx(gx).toFixed(1)+'" y2="'+(y0+ph).toFixed(1)+'"/>'; }
+  for(var gy=Math.ceil(vy1/step)*step; gy<=vy2; gy+=step){ s+='<line x1="'+x0.toFixed(1)+'" y1="'+sy(gy).toFixed(1)+'" x2="'+(x0+pw).toFixed(1)+'" y2="'+sy(gy).toFixed(1)+'"/>'; }
+  s+='</g>';
+  /* 坐标轴（含箭头与字母） */
+  var ax=sx(0), ay=sy(0);
+  s+='<g stroke="#b6c2d1" stroke-width="1.5" fill="none">';
+  s+='<line x1="'+ax.toFixed(1)+'" y1="'+y0.toFixed(1)+'" x2="'+ax.toFixed(1)+'" y2="'+(y0+ph).toFixed(1)+'"/>';
+  s+='<line x1="'+x0.toFixed(1)+'" y1="'+ay.toFixed(1)+'" x2="'+(x0+pw).toFixed(1)+'" y2="'+ay.toFixed(1)+'"/>';
+  s+='</g>';
+  s+='<path d="M'+(x0+pw).toFixed(1)+' '+ay.toFixed(1)+' l-7 -4 l0 8 Z" fill="#b6c2d1"/>';
+  s+='<path d="M'+ax.toFixed(1)+' '+y0.toFixed(1)+' l-4 7 l8 0 Z" fill="#b6c2d1"/>';
+  s+='<text x="'+(x0+pw+4).toFixed(1)+'" y="'+(ay+3).toFixed(1)+'" font-size="12" font-weight="600" fill="#5b6b7d">X</text>';
+  s+='<text x="'+ax.toFixed(1)+'" y="'+(y0-5).toFixed(1)+'" font-size="12" font-weight="600" fill="#5b6b7d" text-anchor="middle">Y</text>';
+  /* 刻度值 */
+  var prevLx=-1e9;
+  for(var tx2=Math.ceil(vx1/step)*step; tx2<=vx2; tx2+=step){
+    var px=sx(tx2);
+    if(px-prevLx>22){ s+='<text x="'+px.toFixed(1)+'" y="'+(y0+ph+15).toFixed(1)+'" text-anchor="middle" font-size="10" fill="#8a97a8">'+fmtC(tx2)+'</text>'; prevLx=px; }
+  }
+  var prevLy=-1e9;
+  for(var ty2=Math.ceil(vy1/step)*step; ty2<=vy2; ty2+=step){
+    var py=sy(ty2);
+    if(py>y0+10 && py-prevLy>16){ s+='<text x="'+(x0-7).toFixed(1)+'" y="'+(py+3).toFixed(1)+'" text-anchor="end" font-size="10" fill="#8a97a8">'+fmtC(ty2)+'</text>'; prevLy=py; }
+  }
+  /* 刀轨 */
+  result.segs.forEach(function(g){
+    if(g.kind==='arc'){
+      var d='M';
+      g.pts.forEach(function(p,i){ d+=(i?'L':'')+sx(p[0]).toFixed(1)+' '+sy(p[1]).toFixed(1); });
+      s+='<path d="'+d+'" fill="none" stroke="#e8833a" stroke-width="2.4"/>';
+    } else {
+      var col=g.kind==='rapid'?'#9aa7b8':'#1f5fbf';
+      var dash=g.kind==='rapid'?' stroke-dasharray="7 5"':'';
+      s+='<line x1="'+sx(g.x1).toFixed(1)+'" y1="'+sy(g.y1).toFixed(1)+'" x2="'+sx(g.x2).toFixed(1)+'" y2="'+sy(g.y2).toFixed(1)+'" stroke="'+col+'" stroke-width="2.4"'+dash+'/>';
+    }
+  });
+  /* 刀补示意线（橘色虚线）：主轨迹之上额外叠加，不改变主轨迹渲染 */
+  if(result.compSegs){
+    result.compSegs.forEach(function(g){
+      if(g.kind==='arc'){
+        var cd='M';
+        g.pts.forEach(function(p,i){ cd+=(i?'L':'')+sx(p[0]).toFixed(1)+' '+sy(p[1]).toFixed(1); });
+        s+='<path d="'+cd+'" fill="none" stroke="#ff8c1a" stroke-width="2" stroke-dasharray="9 5" opacity="0.92"/>';
+      } else {
+        s+='<line x1="'+sx(g.x1).toFixed(1)+'" y1="'+sy(g.y1).toFixed(1)+'" x2="'+sx(g.x2).toFixed(1)+'" y2="'+sy(g.y2).toFixed(1)+'" stroke="#ff8c1a" stroke-width="2" stroke-dasharray="9 5" opacity="0.92"/>';
+      }
+    });
+  }
+  result.marks.forEach(function(m){
+    if(m.kind==='start'){ /* 起点改由下方「切削轨迹」统一标记，原点绿点不再单独绘制 */ }
+    else { s+='<circle cx="'+sx(m.x).toFixed(1)+'" cy="'+sy(m.y).toFixed(1)+'" r="5" fill="#fff" stroke="#d64545" stroke-width="2"/>'; }
+  });
+  /* 连续切削轨迹起点/终点标记（只统计切削段 G01/G02/G03，不含 G00 快速） */
+  var cutSegs=result.segs.filter(function(g){ return g.kind==='cut'||g.kind==='arc'; });
+  if(cutSegs.length){
+    /* 标记文字 Y 定位：避开坐标标注（默认点上方 py-7；顶部点时标注翻到下方 py+15） */
+    function markLabelY(py){
+      if(py<y0+15) return py+34;       /* 顶部：标注已翻到下方，文字放更下方 */
+      if(py+22>y0+ph-6) return py-16;  /* 底部：文字放上方，与标注(py-7)错开 */
+      return py+22;                    /* 中部：文字放下方，与标注(py-7)远距错开 */
+    }
+    var fs=cutSegs[0], ls=cutSegs[cutSegs.length-1];
+    var psP=(fs.kind==='arc')?[fs.pts[0][0],fs.pts[0][1]]:[fs.x1,fs.y1];
+    var peP=(ls.kind==='arc')?[ls.pts[ls.pts.length-1][0],ls.pts[ls.pts.length-1][1]]:[ls.x2,ls.y2];
+    var spx=sx(psP[0]), spy=sy(psP[1]);
+    s+='<circle cx="'+spx.toFixed(1)+'" cy="'+spy.toFixed(1)+'" r="6" fill="#2e9e5b"/>';
+    var spa=(spx<x0+46)?'start':'end';
+    var spt=(spa==='end')?(spx-10):(spx+10);
+    var sty=markLabelY(spy);
+    s+='<text x="'+spt.toFixed(1)+'" y="'+sty.toFixed(1)+'" text-anchor="'+spa+'" font-size="11" font-weight="700" fill="#1c7a43" paint-order="stroke" stroke="#fff" stroke-width="3">起点</text>';
+    var epx=sx(peP[0]), epy=sy(peP[1]);
+    s+='<circle cx="'+epx.toFixed(1)+'" cy="'+epy.toFixed(1)+'" r="6" fill="#d64545" stroke="#fff" stroke-width="2"/>';
+    var epa=(epx>x0+pw-46)?'end':'start';
+    var ept=(epa==='start')?(epx+10):(epx-10);
+    var ety=markLabelY(epy);
+    s+='<text x="'+ept.toFixed(1)+'" y="'+ety.toFixed(1)+'" text-anchor="'+epa+'" font-size="11" font-weight="700" fill="#a83232" paint-order="stroke" stroke="#fff" stroke-width="3">终点</text>';
+  }
+  /* 坐标标注（带 X/Y 字母） */
+  var labeled={};
+  function labelAt(x,y,force){
+    var key=Math.round(x*20)+'_'+Math.round(y*20);
+    if(!force && labeled[key]) return;
+    labeled[key]=1;
+    var px=sx(x), py=sy(y);
+    var anchor='start', tx=px+6, ty=py-7;
+    if(tx>x0+pw-64){ anchor='end'; tx=px-6; }
+    if(ty<y0+8) ty=py+15;
+    s+='<text x="'+tx.toFixed(1)+'" y="'+ty.toFixed(1)+'" font-size="10.5" fill="#33414f" paint-order="stroke" stroke="#fff" stroke-width="3" text-anchor="'+anchor+'" style="font-variant-numeric:tabular-nums">X'+fmtC(x)+' Y'+fmtC(y)+'</text>';
+  }
+  result.segs.forEach(function(g){
+    if(g.kind==='cut'){
+      labelAt(g.x1,g.y1,false);
+      labelAt(g.x2,g.y2,false);
+    } else if(g.kind==='arc'){
+      labelAt(g.pts[0][0],g.pts[0][1],true);
+      labelAt(g.pts[g.pts.length-1][0],g.pts[g.pts.length-1][1],true);
+    }
+  });
+  s+='</svg>';
+  box.innerHTML=s;
+  var tip=el('pathTip');
+  if(tip){
+    if(result.compSegs){
+      tip.textContent='刀轨为 XY 平面投影示意：子程序自动展开，G68 旋转 / G51.1 镜像 / G52 偏移已应用；已叠加刀补示意线（G41/G42，半径 '+fmtNum(result.compR)+' mm），橘色虚线为刀具中心轨迹。';
+    } else if(result.compFound){
+      tip.textContent='刀轨为 XY 平面投影示意：程序含刀补指令（G41/G42）；未启用示意线（取消勾选或刀具半径填 0 时不显示）。';
+    } else {
+      tip.textContent='刀轨为 XY 平面投影示意：子程序自动展开，G68 旋转 / G51.1 镜像 / G52 偏移已应用；未使用刀补指令（G41/G42）。';
+    }
+  }
+}
+/* 视图切换 */
+var lastPath=null;
+function showTab(which){
+  var ex=(which==='explain');
+  el('explainView').style.display=ex?'':'none';
+  el('pathView').style.display=ex?'none':'';
+  el('tabExplain').classList.toggle('on',ex);
+  el('tabPath').classList.toggle('on',!ex);
+  if(!ex){
+    if(lastPath) renderPath(lastPath);
+    else { el('pathMeta').innerHTML=''; el('pathSvgBox').innerHTML='<div class="empty-state">先点「解释程序」，再查看刀轨。</div>'; }
+  }
+}
+/* JS-PATH-F */
+/* ================= 初始化 ================= */
+(function init(){
+  var gb=el('gBadge'); if(gb) gb.textContent='G 代码 '+GCODES.length;
+  var mb=el('mBadge'); if(mb) mb.textContent='M 代码 '+MCODES.length;
+  var bar=el('tplBar');
+  TPLS.forEach(function(t){
+    var b=document.createElement('button'); b.type='button'; b.className='tpl-btn';
+    b.textContent=t.t;
+    b.addEventListener('click',function(){ insertAtCursor(t.c); });
+    bar.appendChild(b);
+  });
+  var sel=el('sampleSel');
+  SAMPLES.forEach(function(s){
+    var o=document.createElement('option'); o.value=s.code; o.textContent=s.name; sel.appendChild(o);
+  });
+  sel.addEventListener('change',function(){ if(sel.value){ el('code').value=sel.value; sel.value=''; runExplain(); } });
+  el('btnClear').addEventListener('click',function(){
+    el('code').value=''; refreshLineNo();
+    el('explainList').innerHTML='<div class="empty-state">程序已清空。</div>';
+    el('statsBar').innerHTML=''; el('issuesBox').innerHTML='';
+    el('pathSvgBox').innerHTML=''; el('pathMeta').innerHTML=''; lastPath=null;
+  });
+  el('btnRun').addEventListener('click',runExplain);
+  /* 复制到剪贴板 + 保存为文本文件 */
+  function flashBtn(b,txt){
+    var old=b.getAttribute('data-txt')||b.textContent;
+    b.setAttribute('data-txt',old);
+    b.textContent=txt; b.classList.add('flash');
+    setTimeout(function(){ b.textContent=old; b.classList.remove('flash'); },1400);
+  }
+  function showTip(msg){
+    var t=document.createElement('div');
+    t.className='toast-tip'; t.textContent=msg;
+    document.body.appendChild(t);
+    setTimeout(function(){ t.classList.add('show'); },20);
+    setTimeout(function(){ t.classList.remove('show'); setTimeout(function(){ t.parentNode&&t.parentNode.removeChild(t); },300); },3200);
+  }
+  function copyText(t){
+    return new Promise(function(res,rej){
+      function fb(){
+        try{
+          var ta=document.createElement('textarea'); ta.value=t;
+          ta.style.position='fixed'; ta.style.opacity='0';
+          document.body.appendChild(ta); ta.focus(); ta.select();
+          var ok=document.execCommand('copy');
+          document.body.removeChild(ta);
+          ok?res():rej(new Error('copy fail'));
+        }catch(e){ rej(e); }
+      }
+      if(navigator.clipboard&&navigator.clipboard.writeText&&window.isSecureContext){ navigator.clipboard.writeText(t).then(res,fb); }
+      else fb();
+    });
+  }
+  el('btnCopy').addEventListener('click',function(){
+    var txt=el('code').value;
+    if(!txt){ flashBtn(this,'无内容'); return; }
+    copyText(txt).then(function(){ flashBtn(this,'已复制'); }.bind(this),function(){ flashBtn(this,'复制失败'); }.bind(this));
+  });
+  el('btnSave').addEventListener('click',function(){
+    var txt=el('code').value;
+    if(!txt){ flashBtn(this,'无内容'); return; }
+    var name='FANUC程序', m=txt.match(/O\d{4}/);
+    if(m) name=m[0];
+    var blob=new Blob(['\uFEFF'+txt],{type:'text/plain;charset=utf-8'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url; a.download=name+'.txt';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); },2000);
+    flashBtn(this,'已保存');
+    showTip('文件已保存到浏览器下载目录（手机一般在「下载」文件夹，可在浏览器下载列表查看）。找不到时建议改用「复制」按钮。');
+  });
+  /* 编辑器字号调节（范围 12-26px，默认 15px） */
+  var CODE_FONT_MIN=12, CODE_FONT_MAX=26;
+  function setCodeFont(delta){
+    var ta=el('code');
+    var cur=parseInt((ta.style.fontSize||'').replace('px',''),10)||15;
+    var next=Math.max(CODE_FONT_MIN,Math.min(CODE_FONT_MAX,cur+delta));
+    ta.style.fontSize=next+'px';
+    var lno=el('lineNo'); if(lno) lno.style.fontSize=next+'px';
+    var lb=el('fontSizeLabel'); if(lb) lb.textContent=next+'px';
+    var fp=el('fontPlus'), fm=el('fontMinus');
+    if(fp) fp.disabled=(next>=CODE_FONT_MAX);
+    if(fm) fm.disabled=(next<=CODE_FONT_MIN);
+  }
+  var fpB=el('fontPlus'); if(fpB) fpB.addEventListener('click',function(){ setCodeFont(1); });
+  var fmB=el('fontMinus'); if(fmB) fmB.addEventListener('click',function(){ setCodeFont(-1); });
+  el('tabExplain').addEventListener('click',function(){ showTab('explain'); });
+  el('tabPath').addEventListener('click',function(){ showTab('path'); });
+  el('code').addEventListener('keydown',function(ev){
+    if((ev.ctrlKey||ev.metaKey)&&ev.key==='Enter'){ ev.preventDefault(); runExplain(); }
+  });
+  /* 编辑器行号栏 + 编辑器↔解释双向联动 */
+  el('code').addEventListener('input',refreshLineNo);
+  el('code').addEventListener('scroll',syncLineNo);
+  /* 刀补示意线控件：变化即重算刀轨 */
+  function recompPath(){
+    var compOn=el('compOn'), compR=parseFloat(el('compRadius').value)||0;
+    if(!lastPath) return;
+    lastPath=computeToolpath(el('code').value, (compOn.checked&&compR>0)?compR:0);
+    if(el('pathView').style.display!=='none') renderPath(lastPath);
+  }
+  var compOnEl=el('compOn'), compRIn=el('compRadius');
+  if(compOnEl) compOnEl.addEventListener('change',recompPath);
+  if(compRIn) compRIn.addEventListener('change',recompPath);
+  if(compRIn) compRIn.addEventListener('input',recompPath);
+  el('explainList').addEventListener('click',function(ev){
+    var item=ev.target.closest('.line-item');
+    if(!item) return;
+    var no=parseInt(item.getAttribute('data-no'),10);
+    if(no) locateEditorLine(no);
+  });
+  el('code').addEventListener('click',function(){ locateExplainLine(lineNoAtPos(el('code').value,el('code').selectionStart)); });
+  el('code').addEventListener('keyup',function(ev){
+    if(ev.key==='ArrowUp'||ev.key==='ArrowDown'||ev.key==='PageUp'||ev.key==='PageDown'||ev.key==='Home'||ev.key==='End'){
+      locateExplainLine(lineNoAtPos(el('code').value,el('code').selectionStart));
+    }
+  });
+  refreshLineNo();
+  el('refSearch').addEventListener('input',function(){ refKw=el('refSearch').value; renderRef(); });
+  buildTabs(); renderRef();
+  /* 默认载入示例程序并显示刀轨预览 */
+  var defSample=SAMPLES[0];
+  if(defSample){
+    el('code').value=defSample.code;
+    runExplain();
+    showTab('path');
+  } else {
+    el('explainList').innerHTML='<div class="empty-state">输入程序后点击「解释程序」，或从右上角载入示例。</div>';
+  }
+})();
+</script>
+
+<!-- ===== 刀轨全屏放大 ===== -->
+<div class="path-overlay" id="pathOverlay" hidden>
+  <div class="path-overlay-head">
+    <div class="path-overlay-title">刀轨预览（全屏）</div>
+    <button type="button" class="path-overlay-close" id="pathOverlayClose">返回</button>
+  </div>
+  <div class="path-overlay-body" id="pathOverlayBody"></div>
+</div>
+
+<script>
+/* ================= 刀轨全屏放大 ================= */
+(function(){
+  var box=el('pathSvgBox'), ov=el('pathOverlay'), body=el('pathOverlayBody');
+  if(!box||!ov||!body) return;
+  function open(svg){
+    body.innerHTML='';
+    var c=svg.cloneNode(true);
+    c.setAttribute('width','100%');
+    c.setAttribute('height','100%');
+    body.appendChild(c);
+    ov.hidden=false;
+    document.body.style.overflow='hidden';
+  }
+  function close(){
+    ov.hidden=true;
+    body.innerHTML='';
+    document.body.style.overflow='';
+  }
+  box.addEventListener('click', function(e){
+    var svg=e.target && e.target.closest ? e.target.closest('svg') : null;
+    if(svg) open(svg);
+  });
+  el('pathOverlayClose').addEventListener('click', close);
+  ov.addEventListener('click', function(e){
+    if(!body.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', function(e){
+    if(e.key==='Escape' && !ov.hidden) close();
+  });
+})();
+</script>
+
+</body>
+</html>
